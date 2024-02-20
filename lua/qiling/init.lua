@@ -2,35 +2,6 @@ local qiling = {}
 
 qiling.name = "Caprecorn"
 
---[[
-  CS_MODE_16 = 2,
-  CS_MODE_32 = 4,
-  CS_MODE_64 = 8,
-  CS_MODE_ARM = 0,
-  CS_MODE_BIG_ENDIAN = 2147483648,
-  CS_MODE_LITTLE_ENDIAN = 0,
-  CS_MODE_MCLASS = 32,
-  CS_MODE_MICRO = 16,
-  CS_MODE_MIPS2 = 128,
-  CS_MODE_MIPS3 = 32,
-  CS_MODE_MIPS32 = 4,
-  CS_MODE_MIPS32R6 = 64,
-  CS_MODE_MIPS64 = 8,
-  CS_MODE_THUMB = 16,
-  CS_MODE_V8 = 64,
-  CS_MODE_V9 = 16,
-
-  CS_ARCH_ARM = 0,
-  CS_ARCH_ARM64 = 1,
-  CS_ARCH_MAX = 19,
-  CS_ARCH_MIPS = 2,
-  CS_ARCH_PPC = 4,
-  CS_ARCH_SPARC = 5,
-  CS_ARCH_SYSZ = 6,
-  CS_ARCH_X86 = 3,
-  CS_ARCH_XCORE = 7,
-]]
-
 function qiling.unicorn()
   if qiling.uc == nil then
     qiling.uc = require("unicorn")

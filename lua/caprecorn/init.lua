@@ -32,7 +32,13 @@ setmetatable(M.engine, { __call = function (_, engine)
       M._disasm = _unicorn.disasm
     end
 
-    M.close = _unicorn.close
+    local prev_close = M.close
+    M.close = function()
+      if prev_close ~=nil then
+        prev_close()
+      end
+      _unicorn.close()
+    end
 
     M.start = function(from, to)
       M._engine:emu_start(from, to)
@@ -69,9 +75,27 @@ setmetatable(M.disasm, { __call = function(_, disasm)
   end
 end})
 
--- Setup Vim integration
+-- Vim UI integration
+M.buf = require("buf")
+M.win = require("win")
 
-require("vim").setup()
+M.close = function()
+  M.buf.close()
+  M.win.close()
+end
+
+-- Views
+
+-- Hex
+M.hex = require("hex")
+
+
+-- Setup Vim integration
+do
+  local vim = require("vim")
+  vim.close = M.close
+  vim.setup()
+end
 
 return M
 
