@@ -2,19 +2,22 @@
 
 ## Caprecorn
 
-- Rename from Qiling to Caprecorn
-- Buf module for buffers: hex, dis, map, reg, stack...
++ Rename from Qiling to Caprecorn
++ Buf module for buffers: hex, dis, map, reg, stack...
 - Help for each buffer
-- Do not expose Unicorn and Capstone, provide access via Caprecorn
++ Do not expose Unicorn and Capstone, provide access via Caprecorn
 - Mapping between Unicorn and Capstone registers
 - Allow multiple hooks (including internal and user-defined)
 - Allow NVim-less scripting for debugging or standalone (if vim ~= nil then...)
 - For start/stop/mem and other functions add stubs that error if used before initialization
-- pcall when trying to close a window that might have been closed by a user
++ pcall when trying to close a window that might have been closed by a user
+- Think about session support (check if a "marker" buffer exists and thus assume a session has been open)
+  Should be handled transparently for a user. New buffers can be created. New windows should be created (how?)
+- Add a possibility to create windows in current tab, w/o creating a new one (maybe someone would want this)
 
 ## Capstone
 
-- Crash on freeiterator()
+- Crash on freeiterator(). Propably it user wrong parameter index (2 instead of 1)
 
 ## Qiling
 

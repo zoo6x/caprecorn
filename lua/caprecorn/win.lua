@@ -17,8 +17,7 @@ local function current_win_hanle()
 end
 
 M.begin_layout = function()
-  local current_tab_handle = vim.api.nvim_tabpage_get_number(0)
-  M.current_win_handle = vim.api.nvim_tabpage_get_win(current_tab_handle)
+  M.current_win_handle = vim.fn.win_getid()
 end
 
 M.end_layout = function()
@@ -74,6 +73,22 @@ M.wrap = function(win_handle)
       vim.api.nvim_win_set_buf(window.handle(), buffer.handle())
   end
 
+  window.width = function(width)
+    if width == nil then
+      vim.api.nvim_win_get_width(window.handle())
+    else
+      vim.api.nvim_win_set_width(window.handle(), width)
+    end
+  end
+
+  window.height = function(height)
+    if height == nil then
+      vim.api.nvim_win_get_height(window.handle())
+    else
+      vim.api.nvim_win_set_height(window.handle(), height)
+    end
+  end
+
   table.insert(M.windows, window)
 
   return window
@@ -88,7 +103,10 @@ M.tab = function()
   return window
 end
 
-M.new = function()
+M.current = function()
+  local current_win_handle = vim.fn.win_getid()
+
+  return M.wrap(current_win_handle)
 end
 
 return M

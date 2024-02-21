@@ -37,7 +37,7 @@ M.hex = function (start, bytes, opt)
         c = bytes[i]
       end
       line = line .. string.format("%02x ", c)
-      if c < 32 or c > 127 then c = 46 end
+      if c < 32 or c >= 127 then c = 46 end
       chars = chars .. string.char(c)
       i = i + 1
     end

@@ -13,17 +13,19 @@ end
 
 M.new = function(name)
   if type(name) ~= "string" then
-    error(string.format("Buffer name should be a string, name=[%s]", name))  
+    error(string.format("Buffer name should be a string, name=[%s]", name))
   end
 
   local buf_handle = vim.fn.bufnr(name)
   if buf_handle ~= -1 then
-    error(string.format("Buffer with name [%s] already exists, handle=[%d]", name, buf_handle))
+    -- This is fine, since it might have been loaded from a session file
+    -- Just use it
+    -- Name clashes are unlikely, since we prefix buffer names with "caprecorn://"
+  else
+    buf_handle = vim.api.nvim_create_buf(true, true)
+    local buf_name = "caprecorn://" .. name
+    vim.api.nvim_buf_set_name(buf_handle, buf_name)
   end
-
-  buf_handle = vim.api.nvim_create_buf(true, true)
-  local buf_name = "caprecorn://" .. name
-  vim.api.nvim_buf_set_name(buf_handle, buf_name)
 
   local buffer = {
     handle = function()

@@ -11,7 +11,6 @@ M.setup = function()
   vim.api.nvim_create_autocmd("BufEnter", {
     pattern = {"*.caprecorn.lua"},
     callback = function(args)
-      print("Caprecorn file open!", args.match, args.buf, args.file)
       local dir = vim.fn.fnamemodify(args.file, ':p:h')
       local path = dir .. "/?.lua"
       if string.find(package.path, path) == nil then
@@ -19,11 +18,12 @@ M.setup = function()
       end
       vim.keymap.set('n', 'LL',
         function()
+          vim.cmd("w")
+
           if M.close ~= nil then
             M.close()
           end
-          print("Loading Lua file " .. args.file);
-          vim.cmd("w")
+
           vim.cmd("source " .. args.file)
         end,
         { buffer = args.buf, desc = "Load Lua file"}
