@@ -80,8 +80,8 @@ M.buf = require("buf")
 M.win = require("win")
 
 M.close = function()
-  M.buf.close()
   M.win.close()
+  M.buf.close()
 end
 
 -- Views

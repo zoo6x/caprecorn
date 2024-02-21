@@ -31,13 +31,18 @@ M.end_layout = function()
 end
 
 M.wrap = function(win_handle)
-  local window = {
-    handle = function()
-      return win_handle
-    end,
 
-    close = function()
-      vim.api.nvim_win_hide(win_handle)
+  local window = {}
+
+  window.buffer = nil
+
+  window.handle = function()
+      return win_handle
+  end
+
+  window.close = function()
+      -- Window might have been closed by the user, ignore error
+      pcall(vim.api.nvim_win_hide, win_handle)
 
       for i = 1, #M.windows do
         if M.windows[i].handle() == win_handle then
@@ -45,20 +50,29 @@ M.wrap = function(win_handle)
           break
         end
       end
-    end,
+  end
 
-    split = function()
+  window.split = function()
       vim.cmd.split({ mods = { horizontal = true } })
 
       return M.wrap(current_win_hanle())
-    end,
+  end
 
-    vsplit = function()
+  window.vsplit = function()
       vim.cmd.vsplit({ mods = { vertical = true } })
 
       return M.wrap(current_win_hanle())
-    end,
-  }
+  end
+
+  window.focus = function()
+    vim.fn.win_gotoid(window.handle())
+  end
+
+  window.buf = function(buffer)
+      window.buffer = buffer
+
+      vim.api.nvim_win_set_buf(window.handle(), buffer.handle())
+  end
 
   table.insert(M.windows, window)
 

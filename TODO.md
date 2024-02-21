@@ -10,6 +10,7 @@
 - Allow multiple hooks (including internal and user-defined)
 - Allow NVim-less scripting for debugging or standalone (if vim ~= nil then...)
 - For start/stop/mem and other functions add stubs that error if used before initialization
+- pcall when trying to close a window that might have been closed by a user
 
 ## Capstone
 
