@@ -94,19 +94,16 @@ M.wrap = function(win_handle)
   return window
 end
 
-M.tab = function()
-  vim.cmd.tabnew()
-  local win_handle = vim.fn.win_getid()
-
-  local window = M.wrap(win_handle)
-
-  return window
-end
-
 M.current = function()
   local current_win_handle = vim.fn.win_getid()
 
   return M.wrap(current_win_handle)
+end
+
+M.tab = function()
+  vim.cmd.tabnew()
+
+  return M.current()
 end
 
 return M

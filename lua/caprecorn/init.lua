@@ -8,6 +8,10 @@ setmetatable(M.arch, { __call = function(_, _arch)
   M._arch = _arch
 end})
 
+-- Memory access interface
+-- Is set up by the engine
+M.mem = {}
+
 -- Supported emulation engines
 M.engine = {}
 M.engine.UNICORN = "UNICORN"
@@ -48,10 +52,18 @@ setmetatable(M.engine, { __call = function (_, engine)
       M._engine:emu_stop()
     end
 
-    M.mem = {}
-
     M.mem.map = function(from, size)
       M._engine:mem_map(from, size)
+    end
+
+    M.mem.read = function(from, size)
+      local status, bytes_or_message = M._engine:mem_read(from, size)
+
+      if not status then
+        error(string.format("Error [%s] when trying to read %d bytes from address 0x%x", bytes_or_message, size, from))
+      end
+
+      return bytes_or_message
     end
 
     M.mem.write = function(from, bytes)
@@ -88,7 +100,7 @@ end
 
 -- Hex
 M.hex = require("hex")
-
+M.hex.setup(M.mem)
 
 -- Setup Vim integration
 do
