@@ -87,16 +87,17 @@ M.open = function(_arch)
   end
   ]]
   M.engine = res
-  print("Unicorn engine open", M.engine)
 
-  local status
-  status, res = capstone.open(params.capstone_arch, params.capstone_mode)
+  local status, handle
+  status, handle = capstone.open(params.capstone_arch, params.capstone_mode)
   if not status then
     error(string.format("Failed to open Capstone with parameters arch=[%s] mode=[%s]",
       tostring(params.capstone_arch),
       tostring(params.capstone_mode)))
   end
-  M.disasm = res
+  capstone.option(handle, capstone.CS_OPT_DETAIL, capstone.CS_OPT_ON)
+  capstone.option(handle, capstone.CS_OPT_SKIPDATA, capstone.CS_OPT_ON)
+  M.disasm = handle
 end
 
 M.close = function()

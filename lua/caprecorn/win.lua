@@ -22,8 +22,6 @@ end
 
 M.end_layout = function()
   if M.current_win_handle ~= nil then
-    --TODO: check when this function is available in release
-    --vim.api.nvim_tabpage_set_win(current_tab_handle, current_win_handle)
     vim.fn.win_gotoid(M.current_win_handle)
     M.current_win_handle = nil
   end

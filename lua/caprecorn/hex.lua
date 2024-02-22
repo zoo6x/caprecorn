@@ -107,7 +107,6 @@ local function setup_keymaps(buffer)
           addr = buffer.hex.from + addr
         end
 
-        print("buffer:jump", addr, addr_str)
         buffer:jump(addr)
       end,
       { buffer = buffer.handle(), desc = "Go to address"}
@@ -132,7 +131,7 @@ local function setup_keymaps(buffer)
     { buffer = buffer.handle(), desc = "Show/hide characters"}
   )
 
- end
+end
 
 local function jump(buffer, addr)
   if addr < buffer.hex.from or addr > buffer.hex.from + buffer.hex.size then
@@ -143,9 +142,14 @@ local function jump(buffer, addr)
       size = buffer.hex.size + (buffer.hex.from - addr)
     else
       from = buffer.hex.from
-      size = addr - buffer.hex.from
+      size = addr - buffer.hex.from + 1
+      if size > M.maxsize then
+        from = addr
+        size = 4096
+      end
     end
 
+    --TODO: first set start and size in options, then do buffer:dump()
     M.dump(buffer, from, size)
   end
 
@@ -194,6 +198,7 @@ M.dump = function(buffer, from, size_or_bytes, opts)
 
   buffer.update(lines, highlight)
 
+  --TODO: Change .hex to .dis, or call it abstractly .mem? Or just buffer.opts?
   if buffer.hex == nil then
     buffer.hex = {}
   end

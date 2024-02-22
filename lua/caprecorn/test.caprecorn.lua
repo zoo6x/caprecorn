@@ -7,26 +7,37 @@ C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
 C.open()
-C.mem.map(0, 2^20)
+C.mem.map(0, 2^24)
 
 C.win.begin_layout()
 
 local dump_buf = C.buf.new("Boot dump")
-local dump0 = C.win.tab()
-dump0.buf(dump_buf)
+local dis_buf = C.buf.new("Boot disassembly")
+local dump = C.win.tab()
+local dis = dump.vsplit()
+dump.buf(dump_buf)
+dis.buf(dis_buf)
 C.win.end_layout()
 
-local fdesc = io.open('lua/qiling/program.x86.bin')
+local program, addr, size
+-- program = 'lua/qiling/program.x86.bin'
+-- addr = 0x07c000
+-- size = 512
+program = '/bin/ls'
+addr = 0x400000
+size = 142144
+
+local fdesc = io.open(program)
 if fdesc ~= nil then
   print("Executing file")
-  local code = fdesc:read(512)
-  C.mem.write(0x7c000, code)
+  local code = fdesc:read(size)
+  C.mem.write(addr, code)
   fdesc:close()
 
-  C.hex.dump(dump_buf, 0x07c000, 512)
-  --C.dis('Disboot', 0x07c000, code)
+  C.hex.dump(dump_buf, addr, #code)
+  C.dis.dis(dis_buf, addr, #code)
 
-  C.start(0x7c000, 2^20)
+  --C.start(0x7c000, 2^20)
   C.stop()
   print("Emulation stopped")
 else

@@ -70,6 +70,25 @@ setmetatable(M.engine, { __call = function (_, engine)
       M._engine:mem_write(from, bytes)
     end
 
+    -- Disassembler
+
+    local capstone = require("capstone")
+
+    M.disasm.createiterator = function(from, code)
+      local it = capstone.createiterator(M._disasm, code, #code, from)
+
+      return it
+    end
+
+    M.disasm.disasmiter = function(it)
+      return capstone.disasmiter(M._disasm, it)
+    end
+
+    M.disasm.freeiterator = function(it)
+      --TODO: Fix in C++ LuaCapstone
+      -- capstone.freeiterator(it)
+    end
+
   end
 end})
 
@@ -101,6 +120,10 @@ end
 -- Hex
 M.hex = require("hex")
 M.hex.setup(M.mem)
+
+-- Disassembler
+M.dis = require("dis")
+M.dis.setup(M.mem, M.disasm)
 
 -- Setup Vim integration
 do
