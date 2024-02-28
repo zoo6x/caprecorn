@@ -66,9 +66,14 @@ M.wrap = function(win_handle)
   end
 
   window.buf = function(buffer)
-      window.buffer = buffer
+    window.buffer = buffer
 
-      vim.api.nvim_win_set_buf(window.handle(), buffer.handle())
+    vim.api.nvim_win_set_buf(window.handle(), buffer.handle())
+
+    if buffer.hex and buffer.hex.opts and buffer.hex.opts.winbar then
+      vim.api.nvim_win_set_option(window.handle(), "winbar", buffer.hex.opts.winbar)
+      vim.cmd("redrawstatus!")
+    end
   end
 
   window.width = function(width)

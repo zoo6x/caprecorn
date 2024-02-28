@@ -2,7 +2,7 @@ print("Sourced test.caprecon.lua")
 
 local C = require('caprecorn')
 
-C.arch(C.arch.X86_32)
+C.arch(C.arch.X86_64)
 C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
@@ -15,7 +15,6 @@ local dump_buf = C.buf.new("Boot dump")
 local dis_buf = C.buf.new("Boot disassembly")
 local dump = C.win.tab()
 local dis = dump.vsplit()
-dump.buf(dump_buf)
 dis.buf(dis_buf)
 C.win.end_layout()
 
@@ -35,11 +34,13 @@ if fdesc ~= nil then
   fdesc:close()
 
   C.hex.dump(dump_buf, addr, #code)
+  --dump.buf(dump_buf)
+  C.dis.maxsize = size
   C.dis.dis(dis_buf, addr, #code)
 
   --C.start(0x7c000, 2^20)
   C.stop()
-  print("Emulation stopped")
+--  print("Emulation stopped")
 else
   print("Faled to open program file!")
 end

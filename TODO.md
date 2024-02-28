@@ -41,3 +41,7 @@
 
 * Replace throw's() in Lua callable functions with error codes 
   (since Lua has C API, not C++ API, and exceptions crash the whole process)
+
+# TO SEE
+
+Also OllyDbg, x86dbg 

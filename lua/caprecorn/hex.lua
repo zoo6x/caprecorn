@@ -24,22 +24,23 @@ M.hex = function (start, bytes, opts)
   local i = 1
 
   if opts then
-    print("opts.show_chars", opts.show_chars)
     if opts.show_chars ~= nil then
       show_chars = opts.show_chars
     end
   end
 
   local header
-  header = "                   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"
+  --TODO? show in winbar
+  header = "  " .. "                   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"
   if show_chars then
     header = header .. "  0123456789ABCDEF"
   end
   if opts then
     opts.display_width = #header
+    opts.winbar = header
   end
 
-  table.insert(lines, header)
+  --table.insert(lines, header)
 
   while start0 < finish do
     if start0 % 16 == 0 then
@@ -112,11 +113,31 @@ local function setup_keymaps(buffer)
       { buffer = buffer.handle(), desc = "Go to address"}
     )
 
-    vim.keymap.set('n', 'E',
+    -- Get original key mapping, like in the plugin below
+    -- https://github.com/anuvyklack/keymap-amend.nvim/blob/master/lua/keymap-amend.lua
+    --[[
+    vim.keymap.set('n', '<PageUp>',
       function()
-        print("Edit mode (TBD)")
-      end
+        print("Page Up!")
+      end,
+      { buffer = buffer.handle(), desc = "Scroll page up"}
     )
+
+    vim.keymap.set('n', '<Up>',
+      function()
+        print("Up!")
+        vim.api.nvim_feedkeys('<Up>', 'n', true)
+      end,
+      { buffer = buffer.handle(), desc = "Scroll up"}
+    )
+
+    vim.keymap.set('n', '<Down>',
+      function()
+        print("Down!")
+      end,
+      { buffer = buffer.handle(), desc = "Scroll down"}
+    )
+  ]]
   end
 
   vim.keymap.set('n', 'vc',
@@ -194,16 +215,17 @@ M.dump = function(buffer, from, size_or_bytes, opts)
     end
   end
 
-  local lines, highlight = M.hex(from, bytes, opts)
-
-  buffer.update(lines, highlight)
-
   --TODO: Change .hex to .dis, or call it abstractly .mem? Or just buffer.opts?
   if buffer.hex == nil then
     buffer.hex = {}
   end
   buffer.hex.opts = opts or {}
   buffer.hex.opts.fixed = fixed
+
+  local lines, highlight = M.hex(from, bytes, buffer.hex.opts)
+  print("winbar", buffer.hex.opts.winbar)
+  buffer.update(lines, highlight)
+
   if buffer.hex.opts.show_chars == nil then
     buffer.hex.opts.show_chars = true
   end
