@@ -1,9 +1,13 @@
 -- Disassembler and debugger
+-- M.engine.step()
+--
 
 local M = {}
 
 M.mem = nil
+M.reg = nil
 M.disasm = nil
+M.emu = nil
 
 -- Cross-references, functions, etc.
 -- [[
@@ -45,9 +49,11 @@ local function create_highlight()
   ]])
 end
 
-M.setup = function(mem, disasm)
-  M.mem = mem
-  M.disasm = disasm
+M.setup = function(C)
+  M.mem = C.mem
+  M.reg = C.reg
+  M.disasm = C.disasm
+  M.emu = C.emu
 
   create_highlight()
 end
@@ -147,7 +153,7 @@ local function dis(start, bytes, opts)
       bytes_str = bytes_str .. string.format("%02x", byte)
     end
 
-    local ref_str = insn_refs(it.insn, M.refs)
+    insn_refs(it.insn, M.refs)
 
     local line = string.format("%016x   %-24s %-10s %s",
       it.insn.address, bytes_str, it.insn.mnemonic, it.insn.op_str)
@@ -159,6 +165,7 @@ local function dis(start, bytes, opts)
 
   end
 
+  --TODO: Fix crash
   M.disasm.freeiterator(it)
 
   -- Highlight
@@ -290,11 +297,49 @@ local function setup_keymaps(buffer)
       { buffer = buffer.handle(), desc = "Go to address"}
     )
 
-    vim.keymap.set('n', 'E',
-      function()
-        print("Edit mode (TBD)")
+    local show_running_status = function()
+      local runstatus
+      if M.emu.stopped() then
+        runstatus = "STOPPED"
+      else
+        runstatus = "RUNNING"
       end
-    )
+      vim.api.nvim_win_set_option(0, "winbar", runstatus .. string.format(" PC=%016x", M.reg.pc()))
+      vim.cmd("redrawstatus!")
+      print(string.format("Emulator " .. string.lower(runstatus) .. " at PC=%016x", M.reg.pc()))
+    end
+
+    vim.api.nvim_create_autocmd({"BufEnter", "CursorMoved", "User", "CursorHold"}, {
+      buffer = buffer.handle(),
+      callback = show_running_status,
+    })
+
+    local step = function()
+      M.emu.step()
+
+      show_running_status()
+    end
+
+    vim.keymap.set('n', 's', step, { buffer = buffer.handle(), desc = "Step"})
+    vim.keymap.set('n', '<F7>', step, { buffer = buffer.handle(), desc = "Step"})
+
+    local timer = vim.loop.new_timer()
+
+    local run = function()
+      timer:start(500, 500, vim.schedule_wrap(function()
+        show_running_status()
+        if M.emu.stopped() then
+          timer:stop()
+        end
+      end))
+
+      M.emu.run()
+
+      show_running_status()
+    end
+
+    vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = "Run"})
+    vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = "Run"})
   end
 
   vim.keymap.set('n', 'vb',

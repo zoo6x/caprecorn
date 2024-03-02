@@ -1,8 +1,9 @@
 print("Sourced test.caprecon.lua")
 
-local C = require('caprecorn')
+C = require('caprecorn')
 
-C.arch(C.arch.X86_64)
+--C.arch(C.arch.X86_64)
+C.arch(C.arch.AARCH64)
 C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
@@ -18,39 +19,37 @@ local dis = dump.vsplit()
 dis.buf(dis_buf)
 C.win.end_layout()
 
-local program, addr, size
+local program, addr, start, size
 -- program = 'lua/qiling/program.x86.bin'
 -- addr = 0x07c000
 -- size = 512
-program = '/bin/ls'
-addr = 0x400000
+-- program = '/bin/ls'
+-- addr = 0x400000
+-- start = 0x401000
+-- size = 142144
+program = '/home/john/src/junk/a.out'
+addr =  0x000000
+start = 0x000244
 size = 142144
 
 local fdesc = io.open(program)
 if fdesc ~= nil then
   print("Executing file")
   local code = fdesc:read(size)
-  C.mem.write(addr, code)
-  fdesc:close()
+  C.mem.write(addr, code)  fdesc:close()
 
   C.hex.dump(dump_buf, addr, #code)
-  --dump.buf(dump_buf)
+  dump.buf(dump_buf)
   C.dis.maxsize = size
-  C.dis.dis(dis_buf, addr, #code)
+  C.dis.dis(dis_buf, start, #code)
 
-  --C.start(0x7c000, 2^20)
-  C.stop()
---  print("Emulation stopped")
+  C.reg.pc(start)
+  dis.focus()
+  --C.emu.run()
+  --
+
 else
   print("Faled to open program file!")
 end
 
 --C.close()
-
-
--- Tests
-
-local function test_open_x86()
-end
-
-test_open_x86()

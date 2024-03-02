@@ -4,6 +4,9 @@ local M = {}
 
 local unicorn = require("unicorn")
 local unicorn_const = require("unicorn.unicorn_const")
+local x86_const = require("unicorn.x86_const")
+local arm_const = require("unicorn.arm_const")
+local aarch64_const = require("unicorn.arm64_const")
 
 local capstone = require("capstone")
 
@@ -62,15 +65,26 @@ local arch_params = {
   [M.arch.AARCH64] = {
     unicorn_arch = unicorn_const.UC_ARCH_ARM64,
     unicorn_mode = unicorn_const.UC_MODE_ARM,
-    capstone_arch = capstone.CS_ARCH_AARCH64,
+    capstone_arch = capstone.CS_ARCH_ARM64,
     capstone_mode = capstone.CS_MODE_ARM,
   },
 }
 
+local arch_pc = {
+  [M.arch.X86_16] = x86_const.UC_X86_REG_IP,
+  [M.arch.X86_32] = x86_const.UC_X86_REG_EIP,
+  [M.arch.X86_64] = x86_const.UC_X86_REG_RIP,
+
+  [M.arch.ARM_V6] = arm_const.UC_ARM_REG_PC,
+  [M.arch.ARM_V7] = arm_const.UC_ARM_REG_PC,
+  [M.arch.ARM_V8] = arm_const.UC_ARM_REG_PC,
+
+  [M.arch.AARCH64] = aarch64_const.UC_ARM64_REG_PC,
+}
 
 M.isopen = false
 
-M.open = function(_arch)
+M.open = function(_arch, reg)
   local params = arch_params[_arch]
   if params == nil then
     error(string.format("Architecture parameters underined arch=[%s]", tostring(_arch)))
@@ -87,6 +101,8 @@ M.open = function(_arch)
   end
   ]]
   M.engine = res
+
+  reg._pc = arch_pc[_arch]
 
   local status, handle
   status, handle = capstone.open(params.capstone_arch, params.capstone_mode)

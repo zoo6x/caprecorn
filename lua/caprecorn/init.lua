@@ -8,9 +8,11 @@ setmetatable(M.arch, { __call = function(_, _arch)
   M._arch = _arch
 end})
 
--- Memory access interface
--- Is set up by the engine
+-- Memory and register access interfaces
+-- Set up by the engine
 M.mem = {}
+M.reg = {}
+M.emu = {}
 
 -- Supported emulation engines
 M.engine = {}
@@ -31,9 +33,10 @@ setmetatable(M.engine, { __call = function (_, engine)
     M.open = function()
       --TODO: error checks, tests (including invalid parameters)
       --TODO: separate Unicorn and Capstone
-      _unicorn.open(M._arch)
+      _unicorn.open(M._arch, M.reg)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
+      M.dis.setup(M)
     end
 
     local prev_close = M.close
@@ -44,8 +47,63 @@ setmetatable(M.engine, { __call = function (_, engine)
       _unicorn.close()
     end
 
-    M.start = function(from, to)
-      M._engine:emu_start(from, to)
+    M.unstop = function()
+      M._stopped = false
+    end
+
+    M.reg.pc = function(val)
+      if M._engine == nil then
+        error("Engine not initialized")
+      end
+
+      if val ~= nil then
+        M._engine:reg_write(M.reg._pc, val)
+      else
+        return M._engine:reg_read(M.reg._pc)
+      end
+    end
+
+    M.start = function(from, to, timeout, instructions)
+      if M._stopped then
+        return false, "Emulation stopped"
+      end
+      return M._engine:emu_start(from, to, timeout, instructions)
+    end
+
+    M.emu.stopped = function ()
+      return M.stopped()
+    end
+
+    M.emu.step = function()
+      if not M.stopped() then
+        print("Emulator is already running")
+        return
+      end
+      M._engine:emu_start(M.reg.pc(), 0, 0, 1)
+    end
+
+    local idle = vim.loop.new_idle()
+
+    M.emu.run = function()
+      if not M.stopped() then
+        print("Emulator is already running")
+        return
+      end
+      print(string.format("Emulator started at PC=%016x", M.reg.pc()))
+      M.unstop()
+
+      idle:start(function()
+        if M.stopped() then
+          idle:stop()
+          print(string.format("Emulator stopped at PC=%016x", M.reg.pc()))
+          return
+        end
+        local res, status = M.start(M.reg.pc(), 0, 0, 101)
+        if not res then
+          idle:stop()
+          error(status)
+        end
+      end)
     end
 
     M.stop = function()
@@ -123,7 +181,6 @@ M.hex.setup(M.mem)
 
 -- Disassembler
 M.dis = require("dis")
-M.dis.setup(M.mem, M.disasm)
 
 -- Setup Vim integration
 do
@@ -131,6 +188,22 @@ do
   vim.close = M.close
   vim.setup()
 end
+
+-- Global key to stop emulator
+M._stopped = true
+
+M.stopped = function()
+  return M._stopped
+end
+
+vim.keymap.set('n', '<F12>', function()
+  if M._stopped then
+    return
+  end
+  M._stopped = true
+  vim.cmd("redrawstatus!")
+end)
+
 
 return M
 

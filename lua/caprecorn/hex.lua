@@ -31,7 +31,7 @@ M.hex = function (start, bytes, opts)
 
   local header
   --TODO? show in winbar
-  header = "  " .. "                   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"
+  header = "      " .. "                   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"
   if show_chars then
     header = header .. "  0123456789ABCDEF"
   end
@@ -223,7 +223,6 @@ M.dump = function(buffer, from, size_or_bytes, opts)
   buffer.hex.opts.fixed = fixed
 
   local lines, highlight = M.hex(from, bytes, buffer.hex.opts)
-  print("winbar", buffer.hex.opts.winbar)
   buffer.update(lines, highlight)
 
   if buffer.hex.opts.show_chars == nil then
