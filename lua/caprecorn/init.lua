@@ -63,11 +63,27 @@ setmetatable(M.engine, { __call = function (_, engine)
       end
     end
 
+    M.reg.sp = function(val)
+      if M._engine == nil then
+        error("Engine not initialized")
+      end
+
+      if val ~= nil then
+        M._engine:reg_write(M.reg._sp, val)
+      else
+        return M._engine:reg_read(M.reg._sp)
+      end
+    end
+
     M.start = function(from, to, timeout, instructions)
       if M._stopped then
         return false, "Emulation stopped"
       end
       return M._engine:emu_start(from, to, timeout, instructions)
+    end
+
+    M.emu.stop = function ()
+      M._stopped = true
     end
 
     M.emu.stopped = function ()
@@ -79,7 +95,14 @@ setmetatable(M.engine, { __call = function (_, engine)
         print("Emulator is already running")
         return
       end
-      M._engine:emu_start(M.reg.pc(), 0, 0, 1)
+      local last_pc = M.reg.pc()
+      local res, status = M._engine:emu_start(M.reg.pc(), -1, 0, 1)
+      if not res then
+        print(string.format("Error at PC=%016x", M.reg.pc()))
+        error(status)
+      else
+        print(string.format("Step succeeded, previous PC=%016x, current PC=%016x", last_pc, M.reg.pc()))
+      end
     end
 
     local idle = vim.loop.new_idle()
@@ -98,9 +121,11 @@ setmetatable(M.engine, { __call = function (_, engine)
           print(string.format("Emulator stopped at PC=%016x", M.reg.pc()))
           return
         end
-        local res, status = M.start(M.reg.pc(), 0, 0, 101)
+        local res, status = M.start(M.reg.pc(), -1, 0, 101)
         if not res then
           idle:stop()
+          M._stopped = true
+          print(string.format("Error at PC=%016x", M.reg.pc()))
           error(status)
         end
       end)
@@ -126,6 +151,21 @@ setmetatable(M.engine, { __call = function (_, engine)
 
     M.mem.write = function(from, bytes)
       M._engine:mem_write(from, bytes)
+    end
+
+    -- Registers
+    M.reg.read = function(regs)
+      local defs = M.reg.def
+
+      local reg_ids = {}
+      for _, p in ipairs(defs) do
+        local reg_id = p[1]
+        table.insert(reg_ids, reg_id)
+      end
+
+      local reg_values = { M._engine:reg_read_batch(unpack(reg_ids)) }
+
+      return reg_values
     end
 
     -- Disassembler
@@ -179,6 +219,10 @@ end
 M.hex = require("hex")
 M.hex.setup(M.mem)
 
+-- Registers
+M.reg = require("reg")
+M.reg.setup(M.emu)
+
 -- Disassembler
 M.dis = require("dis")
 
@@ -197,12 +241,10 @@ M.stopped = function()
 end
 
 vim.keymap.set('n', '<F12>', function()
-  if M._stopped then
-    return
-  end
   M._stopped = true
-  vim.cmd("redrawstatus!")
 end)
+
+
 
 
 return M
