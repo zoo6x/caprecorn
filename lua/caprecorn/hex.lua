@@ -11,9 +11,6 @@ M.setup = function(mem)
   M.mem = mem
 end
 
--- TODO: opt.chars - showcharacters, otherwise hex dump only
--- User should be allowed to switch this from the UI
--- Returns: lines, highlight
 M.hex = function (start, bytes, opts)
   local start0 = start - start % 16
   local finish = start + #bytes
