@@ -82,6 +82,41 @@ local arch_pc = {
   [M.arch.AARCH64] = aarch64_const.UC_ARM64_REG_PC,
 }
 
+local arch_sp = {
+  [M.arch.X86_16] = x86_const.UC_X86_REG_SP,
+  [M.arch.X86_32] = x86_const.UC_X86_REG_ESP,
+  [M.arch.X86_64] = x86_const.UC_X86_REG_RSP,
+
+  [M.arch.ARM_V6] = arm_const.UC_ARM_REG_SP,
+  [M.arch.ARM_V7] = arm_const.UC_ARM_REG_SP,
+  [M.arch.ARM_V8] = arm_const.UC_ARM_REG_SP,
+
+  [M.arch.AARCH64] = aarch64_const.UC_ARM64_REG_SP,
+}
+
+
+
+local arch_reg = {
+  [M.arch.X86_64] = {
+    { x86_const.UC_X86_REG_RAX, "rax" },
+    { x86_const.UC_X86_REG_RBX, "rbx" },
+    { x86_const.UC_X86_REG_RCX, "rcx" },
+    { x86_const.UC_X86_REG_RDX, "rdx" },
+    { x86_const.UC_X86_REG_RSI, "rsi" },
+    { x86_const.UC_X86_REG_RDI, "rdi" },
+    { x86_const.UC_X86_REG_RSP, "rsp" },
+    { x86_const.UC_X86_REG_RIP, "rip" },
+    { x86_const.UC_X86_REG_R8,  "r8"  },
+    { x86_const.UC_X86_REG_R9,  "r9"  },
+    { x86_const.UC_X86_REG_R10, "r10" },
+    { x86_const.UC_X86_REG_R11, "r11" },
+    { x86_const.UC_X86_REG_R12, "r12" },
+    { x86_const.UC_X86_REG_R13, "r13" },
+    { x86_const.UC_X86_REG_R14, "r14" },
+    { x86_const.UC_X86_REG_R15, "r15" },
+  }
+}
+
 M.isopen = false
 
 M.open = function(_arch, reg)
@@ -103,6 +138,8 @@ M.open = function(_arch, reg)
   M.engine = res
 
   reg._pc = arch_pc[_arch]
+  reg._sp = arch_sp[_arch]
+  reg.def = arch_reg[_arch]
 
   local status, handle
   status, handle = capstone.open(params.capstone_arch, params.capstone_mode)
