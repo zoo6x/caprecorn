@@ -5,6 +5,10 @@
 ### Core
 
 - Lua 5.1 does not work properly with 64-bit integers. Maybe return them as two 32-bit integers when needed? Implement i64 class?
+  See https://github.com/cloudwu/lua-int64, also 
+  Actually, we need only 48 bits for addresses, and sign-extend, if needed (LuaJIT and Lua 5.1 should support 53-bit integers precisely)
+  For register values, 2 32-bit integers can be returned and handled properly
+  unicorn-lua and LuaCapstone probably need to be modified to support this
 - How does Unicorn/Qemu execute SYSCALL w/o emulation or hooks? 
 + Rename from Qiling to Caprecorn. Or Qrx
 + Buf module for buffers: hex, dis, map, reg, stack...
