@@ -28,7 +28,7 @@ setmetatable(M.engine, { __call = function (_, engine)
   end
 
   if engine == M.engine.UNICORN then
-    local _unicorn = require("_unicorn")
+    local _unicorn = require("unicap")
 
     M.open = function()
       --TODO: error checks, tests (including invalid parameters)
