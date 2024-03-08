@@ -1,6 +1,4 @@
 -- Disassembler and debugger
--- M.engine.step()
---
 
 local M = {}
 
@@ -46,6 +44,9 @@ local function create_highlight()
   hi default CrcDisCall guifg=#aa0000
   hi default CrcDisJump guifg=#008585
   hi default CrcDisTarget guifg=#cccc00
+  hi default CrcDisPc guibg=#00ff00 guifg=#000000
+  hi default CrcDisForcedRedisassembly guibg=#ff5500 guifg=#000000
+  hi default CrcDisForcedRedisassemblyText guifg=#ff5500
   ]])
 end
 
@@ -138,15 +139,58 @@ local function dis(start, bytes, opts)
     code = ""
   end
 
+  local ensure_addr_list = opts.ensure_contains_addrs
+
   -- Disassemble
 
   local it = M.disasm.createiterator(start, code)
+  local code_offset = 0
 
   local highlight = {}
   local lines = {}
 
+  M.refs = {}
+  --TODO: xrefs key should be [to_ref, from_ref] 
+  -- Or maybe [to_ref] = { [from_ref] = { type = ..., analysis_type = 'STATIC', ... } }
+
+  local forced_redisassembly_addresses = {}
+
+  local last_addr = nil
+  local addr
   while M.disasm.disasmiter(it) do
+    addr = it.insn.address
+
+    local done = false
+    if ensure_addr_list ~= nil then
+      if last_addr ~= nil then
+        for _, ensure_addr in pairs(ensure_addr_list) do
+          if ensure_addr > last_addr and ensure_addr < addr then
+            -- Address in the middle of current instruction, re-disassemble
+            --- print(string.format("last_addr=%016x ensure_addr=%016x addr=%016x", last_addr, ensure_addr, addr))
+            forced_redisassembly_addresses[last_addr] = true
+            code_offset = code_offset - (addr - ensure_addr)
+            code = string.sub(code, code_offset + 1)
+            M.disasm.freeiterator(it)
+            it = M.disasm.createiterator(ensure_addr, code)
+            if not M.disasm.disasmiter(it) then
+              done = true
+              break
+            end
+            code_offset = 0
+            addr = it.insn.address
+            last_addr = nil
+            break
+          end
+        end
+      end
+      last_addr = addr
+    end
+    if done then
+      break
+    end
+
     local size = it.insn.size
+    code_offset = code_offset + size
     local bytes_str = ""
     for i = 0, size - 1 do
       local byte = it.insn.bytes[i]
@@ -156,7 +200,7 @@ local function dis(start, bytes, opts)
     insn_refs(it.insn, M.refs)
 
     local line = string.format("%016x   %-24s %-10s %s",
-      it.insn.address, bytes_str, it.insn.mnemonic, it.insn.op_str)
+      addr, bytes_str, it.insn.mnemonic, it.insn.op_str)
 
     table.insert(lines, line)
 
@@ -169,10 +213,38 @@ local function dis(start, bytes, opts)
   M.disasm.freeiterator(it)
 
   -- Highlight
+  local pc = opts.pc
 
   for i = 1, #highlight do
     local hl = highlight[i]
     local addr = hl.addr
+
+    if pc ~= nil and addr == pc then
+      hl.highlights = {}
+      local hl_addr = {
+        line = i - 1,
+        start_col = 0,
+        hl_group = 'CrcDisPc',
+        end_col = 16,
+        priority = 90,
+      }
+      table.insert(hl.highlights, 1, hl_addr)
+
+      opts.pc_line = i
+    end
+
+    if forced_redisassembly_addresses[addr] then
+      hl.highlights = {}
+      local hl_addr = {
+        line = i - 1,
+        start_col = 0,
+        hl_group = 'CrcDisForcedRedisassembly',
+        end_col = 16,
+        priority = 80,
+        virt_text = {{'Ref inside instruction', 'CrcDisForcedRedisassemblyText'}},
+      }
+      table.insert(hl.highlights, 1, hl_addr)
+    end
 
     local ref = M.refs[addr]
     if ref ~= nil then
@@ -269,78 +341,118 @@ local function dis(start, bytes, opts)
 end
 
 local function setup_keymaps(buffer)
-  if not buffer.hex.opts.fixed then
-    vim.keymap.set('n', 'ga',
-      function()
-        local addr
+  vim.keymap.set('n', 'ga',
+    function()
+      local addr
 
-        vim.fn.inputsave()
-        local addr_str = vim.fn.input("Input address or +/-offset:")
-        vim.fn.inputrestore()
-        if addr_str == "" then
-          return
-        end
-        addr_str = addr_str:gsub("%s+", "")
-        addr = tonumber(addr_str)
-        if addr == nil or #addr_str == 0 then
-          error("Invalid address!")
-        end
-        local sign = string.sub(addr_str, 1, 1)
-        if sign == "+" then
-          addr = buffer.hex.from + buffer.hex.size + addr
-        elseif sign == "-" then
-          addr = buffer.hex.from + addr
-        end
-
-        buffer:jump(addr)
-      end,
-      { buffer = buffer.handle(), desc = "Go to address"}
-    )
-
-    local show_running_status = function()
-      local runstatus
-      if M.emu.stopped() then
-        runstatus = "STOPPED"
-      else
-        runstatus = "RUNNING"
+      vim.fn.inputsave()
+      local addr_str = vim.fn.input("Input address or +/-offset:")
+      vim.fn.inputrestore()
+      if addr_str == "" then
+        return
       end
-      vim.api.nvim_win_set_option(0, "winbar", runstatus .. string.format(" PC=%016x", M.reg.pc()))
-      vim.cmd("redrawstatus!")
-      print(string.format("Emulator " .. string.lower(runstatus) .. " at PC=%016x", M.reg.pc()))
+      addr_str = addr_str:gsub("%s+", "")
+      addr = tonumber(addr_str)
+      if addr == nil or #addr_str == 0 then
+        error("Invalid address!")
+      end
+      local sign = string.sub(addr_str, 1, 1)
+      if sign == "+" then
+        addr = buffer.hex.from + buffer.hex.size + addr
+      elseif sign == "-" then
+        addr = buffer.hex.from + addr
+      end
+
+      buffer:jump(addr)
+
+    end,
+    { buffer = buffer.handle(), desc = "Go to address"}
+  )
+
+  vim.keymap.set('n', 'gP',
+    function()
+      local addr = M.reg.pc()
+
+      buffer:jump(addr)
+
+    end,
+    { buffer = buffer.handle(), desc = "Go to PC"}
+  )
+
+  local show_running_status = function()
+    local runstatus
+    if M.emu.stopped() then
+      runstatus = "STOPPED"
+    else
+      runstatus = "RUNNING"
     end
-
-    vim.api.nvim_create_autocmd({"BufEnter", "CursorMoved", "User", "CursorHold"}, {
-      buffer = buffer.handle(),
-      callback = show_running_status,
-    })
-
-    local step = function()
-      M.emu.step()
-
-      show_running_status()
-    end
-
-    vim.keymap.set('n', 's', step, { buffer = buffer.handle(), desc = "Step"})
-    vim.keymap.set('n', '<F7>', step, { buffer = buffer.handle(), desc = "Step"})
-
-    local timer = vim.loop.new_timer()
-
-    local run = function()
-      timer:start(500, 500, vim.schedule_wrap(function()
-        show_running_status()
-        if M.emu.stopped() then
-          timer:stop()
-        end
-      end))
-
-      M.emu.run()
-
-      show_running_status()
-    end
-
-    vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = "Run"})
-    vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = "Run"})
+    vim.api.nvim_win_set_option(0, "winbar", runstatus .. string.format(" PC=%016x", M.reg.pc()))
+    vim.cmd("redrawstatus!")
+    --print(string.format("Emulator " .. string.lower(runstatus) .. " at PC=%016x", M.reg.pc()))
   end
+
+  vim.api.nvim_create_autocmd({"BufEnter", "CursorMoved", "User", "CursorHold"}, {
+    buffer = buffer.handle(),
+    callback = show_running_status,
+  })
+
+  local step = function()
+    M.emu.step()
+
+    show_running_status()
+
+    buffer:jump(M.reg.pc())
+
+    if buffer.hex.opts.pc_line ~= nil then
+      vim.cmd(":" .. tostring(buffer.hex.opts.pc_line))
+    end
+    local curr_line = vim.fn.line('.')
+    local first_line = vim.fn.line('w0')
+    local last_line = vim.fn.line('w$')
+    if last_line - first_line > 0 then
+      local too_low_line = last_line - math.floor(0.15 * (last_line - first_line))
+      if curr_line >= too_low_line then
+        vim.cmd([[execute "normal zz"]])
+      end
+    end
+
+
+    if buffer.on_change ~= nil then
+      buffer.on_change()
+    end
+  end
+
+  vim.keymap.set('n', 's', step, { buffer = buffer.handle(), desc = "Step"})
+  vim.keymap.set('n', '<F7>', step, { buffer = buffer.handle(), desc = "Step"})
+
+  vim.keymap.set('n', 'D', function ()
+    buffer:jump(buffer.hex.from)
+  end, { buffer = buffer.handle(), desc = "Step"})
+
+  local timer = vim.loop.new_timer()
+
+  local run = function()
+    timer:start(500, 500, vim.schedule_wrap(function()
+      show_running_status()
+      if buffer.on_change ~= nil then
+        buffer.on_change()
+      end
+      if M.emu.stopped() then
+        timer:stop()
+      end
+    end))
+
+    M.emu.run()
+
+    show_running_status()
+  end
+
+  vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = "Run"})
+  vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = "Run"})
+
+  vim.keymap.set('n', 'S', function()
+    M.emu.stop()
+  end, { buffer = buffer.handle(), desc = "Stop"})
 
   vim.keymap.set('n', 'vb',
     function()
@@ -360,23 +472,31 @@ local function setup_keymaps(buffer)
 end
 
 local function jump(buffer, addr)
+  local from
+  local size
+
+  from = buffer.hex.from
+  size = buffer.hex.size
+
+  local opts = buffer.hex.opts or {}
+  opts.pc = M.reg.pc()
+  opts.ensure_contains_addrs = { addr, M.reg.pc() }
+
   if addr < buffer.hex.from or addr > buffer.hex.from + buffer.hex.size then
-    local from
-    local size
     if addr < buffer.hex.from then
       from = addr
       size = buffer.hex.size + (buffer.hex.from - addr)
     else
       from = buffer.hex.from
       size = addr - buffer.hex.from + 1
-      if size > M.maxsize then
+      if size > M.maxsize or (opts.maxsize ~= nil and size > opts.maxsize) then
         from = addr
-        size = 4096
+        size = math.min(M.maxsize, opts.maxsize or M.maxsize)
       end
     end
-
-    M.dis(buffer, from, size)
   end
+
+  M.dis(buffer, from, size, opts)
 
   --TODO: Move cursor in GUI to the specified address
 end
@@ -407,14 +527,20 @@ M.dis = function(buffer, from, size_or_bytes, opts)
 
       if size > M.maxsize then
         size = M.maxsize
+        if opts.maxsize and opts.maxsize < size then
+          size = opts.maxsize
+        end
         print(string.format("Disassembly size truncated to %d bytes", M.maxsize))
       end
       bytes = M.mem.read(from, size)
 
     else
-      error(string.format("Disassembler expects either a fixed byte string, or an address and size"))
+      error(string.format("Disassembler expects either a fixed byte string, or an address and size, received [%s] type [%s]",
+        tostring(size_or_bytes), tostring(type(size_or_bytes))))
     end
   end
+
+  opts = opts or {}
 
   local lines, highlight = dis(from, bytes, opts)
 
@@ -423,7 +549,7 @@ M.dis = function(buffer, from, size_or_bytes, opts)
   if buffer.hex == nil then
     buffer.hex = {}
   end
-  buffer.hex.opts = opts or {}
+  buffer.hex.opts = opts
   buffer.hex.opts.fixed = fixed
   if buffer.hex.opts.show_bytes == nil then
     buffer.hex.opts.show_bytes = true
@@ -434,7 +560,6 @@ M.dis = function(buffer, from, size_or_bytes, opts)
     buffer.hex.mem = M.mem
     buffer.jump = jump
   end
-  --buffer.dump = dump
 
   setup_keymaps(buffer)
 end
