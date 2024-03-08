@@ -78,7 +78,7 @@ M.wrap = function(win_handle)
 
   window.width = function(width)
     if width == nil then
-      vim.api.nvim_win_get_width(window.handle())
+      return vim.api.nvim_win_get_width(window.handle())
     else
       vim.api.nvim_win_set_width(window.handle(), width)
     end
@@ -86,7 +86,7 @@ M.wrap = function(win_handle)
 
   window.height = function(height)
     if height == nil then
-      vim.api.nvim_win_get_height(window.handle())
+      return vim.api.nvim_win_get_height(window.handle())
     else
       vim.api.nvim_win_set_height(window.handle(), height)
     end
