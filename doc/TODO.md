@@ -45,6 +45,7 @@
 ## Qiling
 
 - Continue Qiling support via PyNvim
+  #NVIM_LISTEN_ADDRESS=/tmp/nvim nvim -S Session.vim +"set rtp+=$(pwd)"
 - Bi-directional communication (w/a thread safety?)
 
 ## Unicorn
