@@ -2,8 +2,8 @@ print("Sourced test.caprecon.lua")
 
 C = require('caprecorn')
 
---C.arch(C.arch.X86_64)
-C.arch(C.arch.AARCH64)
+C.arch(C.arch.X86_64)
+--C.arch(C.arch.AARCH64)
 C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
@@ -14,36 +14,59 @@ C.win.begin_layout()
 
 local dump_buf = C.buf.new("Boot dump")
 local dis_buf = C.buf.new("Boot disassembly")
+local reg_buf = C.buf.new("Registers")
+
 local dump = C.win.tab()
+local total_width = dump.width()
 local dis = dump.vsplit()
+local dump_bottom = dis.split()
+dump_bottom.height(10)
+dis.width(math.floor(total_width * 0.7))
+dump.focus()
+local reg = dump.split()
 dis.buf(dis_buf)
+reg.buf(reg_buf)
 C.win.end_layout()
 
-local program, addr, start, size
--- program = 'lua/qiling/program.x86.bin'
+dis_buf.on_change = function()
+  C.reg.dump(reg_buf)
+end
+
+local program, stack, addr, start, size
+program = '/bin/ls'
 -- addr = 0x07c000
 -- size = 512
--- program = '/bin/ls'
--- addr = 0x400000
--- start = 0x401000
+program = '/home/john/bin/malware/0003.bin'
+stack = 0x2ffff0
+-- TODO: Why does not run with address 0?
+-- Also see this issue https://github.com/unicorn-engine/unicorn/issues/1846
+-- When stepping 2 instructions, all works. Workaround for now?
+addr  = 0x400000
+start = 0x400078
+size = 4096
 -- size = 142144
-program = '/home/john/src/junk/a.out'
-addr =  0x000000
-start = 0x000244
+-- program = '/home/john/src/junk/a.out'
+-- addr =  0x000000
+-- start = 0x000244
 size = 142144
 
 local fdesc = io.open(program)
 if fdesc ~= nil then
   print("Executing file")
   local code = fdesc:read(size)
+
   C.mem.write(addr, code)  fdesc:close()
 
-  C.hex.dump(dump_buf, addr, #code)
-  dump.buf(dump_buf)
-  C.dis.maxsize = size
-  C.dis.dis(dis_buf, start, #code)
-
+  C.reg.sp(stack)
   C.reg.pc(start)
+
+  C.hex.dump(dump_buf, addr, #code)
+  dump_bottom.buf(dump_buf)
+  C.dis.maxsize = size
+  C.dis.dis(dis_buf, start, #code, { pc = C.reg.pc(), maxsize = 4096 })
+
+  C.reg.dump(reg_buf)
+
   dis.focus()
   --C.emu.run()
   --
