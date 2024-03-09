@@ -50,7 +50,8 @@
 
 ## Unicorn
 
-- Self-modified code conflicts with instruction counter. See tb_invalidate_phys_page_range__locked in translate-all.c
++ Self-modified code conflicts with instruction counter. See tb_invalidate_phys_page_range__locked in translate-all.c
+- Reading CR8 register crashes
 
 ## Unicorn-Lua
 
