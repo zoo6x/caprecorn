@@ -1,5 +1,4 @@
-print("Sourced test.caprecon.lua")
-
+--
 C = require('caprecorn')
 
 C.arch(C.arch.X86_64)
@@ -33,26 +32,23 @@ dis_buf.on_change = function()
 end
 
 local program, stack, addr, start, size
-program = '/bin/ls'
+-- program = '/bin/ls'
 -- addr = 0x07c000
--- size = 512
+-- size = 142144
+
 program = '/home/john/bin/malware/0003.bin'
 stack = 0x2ffff0
--- TODO: Why does not run with address 0?
--- Also see this issue https://github.com/unicorn-engine/unicorn/issues/1846
--- When stepping 2 instructions, all works. Workaround for now?
 addr  = 0x400000
 start = 0x400078
 size = 4096
--- size = 142144
+
 -- program = '/home/john/src/junk/a.out'
 -- addr =  0x000000
 -- start = 0x000244
-size = 142144
+-- size = 4096
 
 local fdesc = io.open(program)
 if fdesc ~= nil then
-  print("Executing file")
   local code = fdesc:read(size)
 
   C.mem.write(addr, code)  fdesc:close()
@@ -68,9 +64,6 @@ if fdesc ~= nil then
   C.reg.dump(reg_buf)
 
   dis.focus()
-  --C.emu.run()
-  --
-
 else
   print("Faled to open program file!")
 end
