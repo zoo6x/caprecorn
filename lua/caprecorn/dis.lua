@@ -166,7 +166,6 @@ local function dis(start, bytes, opts)
         for _, ensure_addr in pairs(ensure_addr_list) do
           if ensure_addr > last_addr and ensure_addr < addr then
             -- Address in the middle of current instruction, re-disassemble
-            --- print(string.format("last_addr=%016x ensure_addr=%016x addr=%016x", last_addr, ensure_addr, addr))
             forced_redisassembly_addresses[last_addr] = true
             code_offset = code_offset - (addr - ensure_addr)
             code = string.sub(code, code_offset + 1)
@@ -191,16 +190,38 @@ local function dis(start, bytes, opts)
 
     local size = it.insn.size
     code_offset = code_offset + size
+
     local bytes_str = ""
     for i = 0, size - 1 do
       local byte = it.insn.bytes[i]
       bytes_str = bytes_str .. string.format("%02x", byte)
     end
 
+    local regs_read_count = it.insn.detail.regs_read_count
+    local regs_read = it.insn.detail.regs_read
+    local regs_write_count = it.insn.detail.regs_write_count
+    local regs_write = it.insn.detail.regs_write
+
+    local regs_read_str = ""
+    for i = 0, regs_read_count - 1 do
+      local disasm_reg_id = regs_read[i] or 0
+      local reg_id = M.reg.disasm_reg_id(disasm_reg_id)
+      local reg_name = M.reg.name(reg_id)
+      regs_read_str = regs_read_str .. reg_name .. " "
+    end
+
+    local regs_write_str = ""
+    for i = 0, regs_write_count - 1 do
+      local disasm_reg_id = regs_write[i] or 0
+      local reg_id = M.reg.disasm_reg_id(disasm_reg_id)
+      local reg_name = M.reg.name(reg_id)
+      regs_write_str = regs_write_str .. reg_name .. " "
+    end
+
     insn_refs(it.insn, M.refs)
 
-    local line = string.format("%016x   %-24s %-10s %s",
-      addr, bytes_str, it.insn.mnemonic, it.insn.op_str)
+    local line = string.format("%016x   %-24s %-10s %-42s [%s<= %s]",
+      addr, bytes_str, it.insn.mnemonic, it.insn.op_str, regs_write_str, regs_read_str)
 
     table.insert(lines, line)
 

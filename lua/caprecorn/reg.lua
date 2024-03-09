@@ -33,10 +33,17 @@ M.dump = function(buffer)
   local lines = {}
   local highlight = {}
 
-  for i, p in ipairs(M.def) do
+  local reg_ids = {}
+  for reg_id, _ in pairs(M.def) do
+    table.insert(reg_ids, reg_id)
+  end
+  table.sort(reg_ids)
+
+  for i = 1, #reg_ids do
     local line
+    local reg_id = reg_ids[i]
+    local reg_name = M.def[reg_id]
     local reg_value = reg_values[i]
-    local reg_name = p[2]
     local old_reg_value = old_reg_values[i]
     local changed = false
 

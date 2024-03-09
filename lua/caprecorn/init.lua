@@ -181,13 +181,15 @@ setmetatable(M.engine, { __call = function (_, engine)
     M.reg.read = function(regs)
       --TODO: return based on the parameter (dynamic, for instance, show only registers used by a certain function)
       --Support register groups (general purpose, segment, XMM/YMM/ZMM, system CRx/DRx/...)
+      --Return status and value
+      --Return 64-bit values as two 32-bit  
       local defs = M.reg.def
 
       local reg_ids = {}
-      for _, p in ipairs(defs) do
-        local reg_id = p[1]
+      for reg_id, _ in pairs(defs) do
         table.insert(reg_ids, reg_id)
       end
+      table.sort(reg_ids)
 
       local reg_values = { M._engine:reg_read_batch(unpack(reg_ids)) }
 
