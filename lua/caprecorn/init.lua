@@ -1,5 +1,8 @@
 local M = {}
 
+-- Debug log
+-- local _log = require("_log")
+
 -- Supported architectures
 local arch = require("arch")
 M.arch = arch.arch
@@ -154,7 +157,30 @@ setmetatable(M.engine, { __call = function (_, engine)
     end
 
     -- Registers
+    --[[
+    -- Debug function that reads registers one-by-one
+    M.reg.read_ = function(regs)
+      local defs = M.reg.def
+
+      local reg_values = {}
+
+      for _, p in ipairs(defs) do
+        local reg_id = p[1]
+        local reg_name = p[2]
+        _log.write(string.format("Reading register %s (%s)", reg_name, tostring(reg_id)))
+        local reg_value = M._engine:reg_read(reg_id)
+        _log.write(string.format("Register %s = %d", reg_name, reg_value))
+        table.insert(reg_values, reg_value)
+      end
+
+      return reg_values
+    end
+    ]]
+
+    -- Batch read
     M.reg.read = function(regs)
+      --TODO: return based on the parameter (dynamic, for instance, show only registers used by a certain function)
+      --Support register groups (general purpose, segment, XMM/YMM/ZMM, system CRx/DRx/...)
       local defs = M.reg.def
 
       local reg_ids = {}
