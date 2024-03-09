@@ -11,11 +11,19 @@ C.mem.map(0, 2^24)
 
 C.win.begin_layout()
 
+local dump = C.win.tab()
+
 local dump_buf = C.buf.new("Boot dump")
 local dis_buf = C.buf.new("Boot disassembly")
-local reg_buf = C.buf.new("Registers")
+local reg_buf = C.buf.new("Regs")
+reg_buf.opts = {
+  filter = { base = false, flags = false, vector = false, segment = false, fp = false, system = false, }
+}
+local vector_reg_buf = C.buf.new("Vector Regs")
+vector_reg_buf.opts = {
+  filter = { base = false, vector = true, }
+}
 
-local dump = C.win.tab()
 local total_width = dump.width()
 local dis = dump.vsplit()
 local dump_bottom = dis.split()
@@ -62,6 +70,7 @@ if fdesc ~= nil then
   C.dis.dis(dis_buf, start, #code, { pc = C.reg.pc(), maxsize = 4096 })
 
   C.reg.dump(reg_buf)
+  C.reg.dump(vector_reg_buf)
 
   dis.focus()
 else
