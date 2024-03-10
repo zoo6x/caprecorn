@@ -613,7 +613,13 @@ M.open = function(_arch, reg)
   reg.def = arch_reg[_arch]
 
   reg.name = function(reg_id)
-    return arch_reg[reg._arch][reg_id].name
+    print(reg_id)
+    local reg_def = arch_reg[reg._arch][reg_id]
+    if reg_def ~= nil then
+      return reg_def.name
+    else
+      return "???" .. tostring(reg_id)
+    end
   end
 
   -- Converts Capstone's register id to Unicorn's one

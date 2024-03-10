@@ -44,11 +44,11 @@ local program, stack, addr, start, size
 -- addr = 0x07c000
 -- size = 142144
 
-program = '/home/john/bin/malware/0003.bin'
+program = '/home/john/bin/malware/13900.bin'
 stack = 0x2ffff0
-addr  = 0x400000
-start = 0x400078
-size = 4096
+addr  = 0x000000
+start = 0x0020fc
+size = 13900
 
 -- program = '/home/john/src/junk/a.out'
 -- addr =  0x000000

@@ -206,7 +206,13 @@ local function dis(start, bytes, opts)
     for i = 0, regs_read_count - 1 do
       local disasm_reg_id = regs_read[i] or 0
       local reg_id = M.reg.disasm_reg_id(disasm_reg_id)
-      local reg_name = M.reg.name(reg_id)
+      local reg_name
+      if reg_id == nil then
+        print("Disasm reg nil", disasm_reg_id)
+        reg_name = "???"
+      else
+        reg_name = M.reg.name(reg_id)
+      end
       regs_read_str = regs_read_str .. reg_name .. " "
     end
 

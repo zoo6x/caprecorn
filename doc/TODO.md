@@ -33,6 +33,12 @@
 - Go to address: enter <address[,size|,,end_address] | +/-offset>  
 - Multiple buffers for single window
 - Show memory maps
+- Stack view (RSP + and - offsets)
+- Hook sample (1032.bin): starting this point stop when RAX = 0x29
+- When stepping into a call in another window show where the subtoutine will return (can be done manually, but boring)
+- Step back with restoring registers (memory can come later)
+- Flags display and show if a conditional jump will be executed
+- Compute effective address. Show dump if it is a memory operation or disassemble if this is an indirect jump/call 
 
 ## Capstone
 
