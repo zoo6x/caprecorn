@@ -1,5 +1,6 @@
 --
 C = require('caprecorn')
+_log = require('_log')
 
 C.arch(C.arch.X86_64)
 --C.arch(C.arch.AARCH64)
@@ -7,7 +8,9 @@ C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
 C.open()
-C.mem.map(0, 2^24)
+_log.write("Before mmap")
+C.mem.map(0x555555550000, 0x100000)
+_log.write("After mmap")
 
 C.win.begin_layout()
 
@@ -44,11 +47,11 @@ local program, stack, addr, start, size
 -- addr = 0x07c000
 -- size = 142144
 
-program = '/home/john/bin/malware/13900.bin'
-stack = 0x2ffff0
-addr  = 0x000000
-start = 0x0020fc
-size = 13900
+program = '/home/john/bin/malware/2/dance'
+stack = 0x555555553000
+addr  = 0x555555554000
+start = 0x555555555120
+size = 65536
 
 -- program = '/home/john/src/junk/a.out'
 -- addr =  0x000000
@@ -59,14 +62,18 @@ local fdesc = io.open(program)
 if fdesc ~= nil then
   local code = fdesc:read(size)
 
-  C.mem.write(addr, code)  fdesc:close()
+
+  _log.write("Before mem write code size=" .. tostring(#code))
+  C.mem.write(addr, code)
+  _log.write("After mem write")
+  fdesc:close()
 
   C.reg.sp(stack)
   C.reg.pc(start)
 
   C.hex.dump(dump_buf, addr, #code)
   dump_bottom.buf(dump_buf)
-  C.dis.maxsize = size
+  C.dis.maxsize = 16384 --TODO: Why maxsize in opts does not work? 
   C.dis.dis(dis_buf, start, #code, { pc = C.reg.pc(), maxsize = 4096 })
 
   C.reg.dump(reg_buf)
