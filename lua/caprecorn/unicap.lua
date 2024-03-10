@@ -1,6 +1,9 @@
 -- Unicorn and Capstone interfaces
 local M = {}
 
+local _log
+_log = require("_log")
+
 -- Dependencies: Unicorn and Capstone
 local unicorn = require("unicorn")
 local unicorn_const = require("unicorn.unicorn_const")
@@ -587,6 +590,22 @@ local arch_reg = {
   }
 }
 
+-- Syscall hook
+
+local function syscall_callback(engine)
+  _log.write("SYSCALL hook")
+  M.engine:reg_write(x86_const.UC_X86_REG_R14, 0x1ee7115ebeef)
+end
+
+local function hook_syscall(engine)
+  local handle = engine:hook_add(
+    unicorn_const.UC_HOOK_INSN, syscall_callback,
+    0, 0x7fffffffffff, nil, x86_const.UC_X86_INS_SYSCALL)
+
+  return handle
+end
+
+
 M.isopen = false
 
 M.open = function(_arch, reg)
@@ -595,7 +614,7 @@ M.open = function(_arch, reg)
     error(string.format("Architecture parameters undefined arch=[%s]", tostring(_arch)))
   end
 
-  local res = unicorn.open(params.unicorn_arch, params.unicorn_mode)
+  local engine = unicorn.open(params.unicorn_arch, params.unicorn_mode)
   --[[
   local status, res
   status, res = pcall(function() unicorn.open(params.unicorn_arch, params.unicorn_mode) end)
@@ -605,15 +624,25 @@ M.open = function(_arch, reg)
       tostring(params.unicorn_mode)))
   end
   ]]
-  M.engine = res
+  M.engine = engine
 
   reg._arch = _arch
+  reg.def = arch_reg[_arch]
+  -- Architecture-neutral registers
   reg._pc = arch_pc[_arch]
   reg._sp = arch_sp[_arch]
-  reg.def = arch_reg[_arch]
+  -- Architecture-specific registers
+  reg.x86 = {}
+  reg.x86.gdtr = x86_const.UC_X86_REG_GDTR
+  reg.x86.cs = x86_const.UC_X86_REG_CS
+  reg.x86.ss = x86_const.UC_X86_REG_SS
+  reg.x86.ds = x86_const.UC_X86_REG_DS
+  reg.x86.es = x86_const.UC_X86_REG_ES
+  reg.x86.gs = x86_const.UC_X86_REG_GS
+  reg.x86.fs = x86_const.UC_X86_REG_FS
+  reg.x86.msr = x86_const.UC_X86_REG_MSR
 
   reg.name = function(reg_id)
-    print(reg_id)
     local reg_def = arch_reg[reg._arch][reg_id]
     if reg_def ~= nil then
       return reg_def.name
@@ -628,6 +657,8 @@ M.open = function(_arch, reg)
     return x86_capstone_to_unicorn_reg_map[disasm_reg_id]
   end
 
+  -- Syscall hook
+  hook_syscall(engine)
 
   local status, handle
   status, handle = capstone.open(params.capstone_arch, params.capstone_mode)

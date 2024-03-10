@@ -1,7 +1,8 @@
 local M = {}
 
 -- Debug log
-local _log = require("_log")
+local _log
+_log = require("_log")
 
 -- Supported architectures
 local arch = require("arch")
@@ -36,10 +37,15 @@ setmetatable(M.engine, { __call = function (_, engine)
     M.open = function()
       --TODO: error checks, tests (including invalid parameters)
       --TODO: separate Unicorn and Capstone
+
+      M.emu.arch = M._arch
       _unicorn.open(M._arch, M.reg)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
       M.dis.setup(M)
+      _log.write("Before ELF init")
+      M.elf.init()
+      _log.write("After ELF init")
     end
 
     local prev_close = M.close
@@ -139,7 +145,11 @@ setmetatable(M.engine, { __call = function (_, engine)
     end
 
     M.mem.map = function(from, size)
-      M._engine:mem_map(from, size)
+      local status, err = M._engine:mem_map(from, size)
+
+      if not status then
+        error(string.format("Error [%s] when trying to map %d bytes at address 0x%x", err, size, from))
+      end
     end
 
     M.mem.read = function(from, size)
@@ -153,7 +163,10 @@ setmetatable(M.engine, { __call = function (_, engine)
     end
 
     M.mem.write = function(from, bytes)
-      M._engine:mem_write(from, bytes)
+      local status, err = M._engine:mem_write(from, bytes)
+      if not status then
+        error(string.format("Memory write error=[%s]", err))
+      end
     end
 
     -- Registers
@@ -183,6 +196,22 @@ setmetatable(M.engine, { __call = function (_, engine)
       local reg_values = { M._engine:reg_read_batch(unpack(reg_ids)) }
 
       return reg_values
+    end
+
+    M.reg.write_buf = function(reg_id, buf)
+      local status, err = M._engine:reg_write_buf(reg_id, buf)
+
+      if not status then
+        error(string.format("Register [%s] write failed error=[%s]", M.reg.name(reg_id), tostring(err)))
+      end
+    end
+
+    M.reg.write = function(reg_id, val)
+      local status, err = M._engine:reg_write(reg_id, val)
+
+      if not status then
+        error(string.format("Register [%s] value %016x write failed error=[%s]", M.reg.name(reg_id), val, tostring(err)))
+      end
     end
 
     -- Disassembler
@@ -230,20 +259,7 @@ M.close = function()
   M.buf.close()
 end
 
--- Views
-
--- Hex
-M.hex = require("hex")
-M.hex.setup(M.mem)
-
--- Registers
-M.reg = require("reg")
-M.reg.setup(M.emu)
-
--- Disassembler
-M.dis = require("dis")
-
--- Setup Vim integration
+-- Vim integration
 do
   local vim = require("vim")
   vim.close = M.close
@@ -260,6 +276,21 @@ end
 vim.keymap.set('n', '<F12>', function()
   M._stopped = true
 end)
+
+-- Hex
+M.hex = require("hex")
+M.hex.setup(M.mem)
+
+-- Registers
+M.reg = require("reg")
+M.reg.setup(M.emu)
+
+-- Disassembler
+M.dis = require("dis")
+
+-- ELF file loader
+M.elf = require("elf")
+M.elf.setup(M.emu, M.mem, M.reg)
 
 
 
