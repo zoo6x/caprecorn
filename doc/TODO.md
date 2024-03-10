@@ -2,6 +2,10 @@
 
 ## Caprecorn
 
+### Organisational
+
+- Find interesting/obfuscated malware samples or CTF challenges (see links in [CTF.md])
+
 ### Core
 
 - Lua 5.1 does not work properly with 64-bit integers. Maybe return them as two 32-bit integers when needed? Implement i64 class?
@@ -70,3 +74,9 @@ https://github.com/ampotos/dynStruct
 DynamoRIO
 
 Also OllyDbg, x86dbg 
+
+# TO PLAY/EXPLORE
+
+- Forth in AVX-2 (?)
+- Can code segment be only executable and not readable?
+
