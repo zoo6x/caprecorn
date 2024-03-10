@@ -12,7 +12,14 @@ M.setup = function(mem)
 end
 
 M.hex = function (start, bytes, opts)
-  local start0 = start - start % 16
+  local width = 16
+  if opts then
+    if opts.width then
+      width = opts.width
+    end
+  end
+
+  local start0 = start - start % width
   local finish = start + #bytes
   local lines = {}
   local line = ""
@@ -40,7 +47,7 @@ M.hex = function (start, bytes, opts)
   --table.insert(lines, header)
 
   while start0 < finish do
-    if start0 % 16 == 0 then
+    if start0 % width == 0 then
       if line ~= "" then
         line = line .. " " .. chars
         table.insert(lines, line)
@@ -68,8 +75,8 @@ M.hex = function (start, bytes, opts)
     end
     start0 = start0 + 1
   end
-  local trail = 16 - finish % 16
-  if trail > 0 and trail < 16 then
+  local trail = width - finish % width
+  if trail > 0 and trail < width then
     line = line .. string.rep("   ", trail)
   end
   if show_chars then
