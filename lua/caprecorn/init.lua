@@ -2,7 +2,7 @@ local M = {}
 
 -- Debug log
 local _log
-_log = require("_log")
+-- _log = require("_log")
 
 -- Supported architectures
 local arch = require("arch")
@@ -43,9 +43,7 @@ setmetatable(M.engine, { __call = function (_, engine)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
       M.dis.setup(M)
-      _log.write("Before ELF init")
       M.elf.init()
-      _log.write("After ELF init")
     end
 
     local prev_close = M.close
@@ -177,9 +175,7 @@ setmetatable(M.engine, { __call = function (_, engine)
       for i = 1, #reg_ids do
         local reg_id = reg_ids[i]
         local reg_name = M.reg.name(reg_id)
-        _log.write(string.format("Reading register %s (%s)", reg_name, tostring(reg_id)))
         local reg_value = M._engine:reg_read(reg_id)
-        _log.write(string.format("Register %s = %d", reg_name, reg_value))
         table.insert(reg_values, reg_value)
       end
 
