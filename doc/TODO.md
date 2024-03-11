@@ -43,6 +43,7 @@
 - Step back with restoring registers (memory can come later)
 - Flags display and show if a conditional jump will be executed
 - Compute effective address. Show dump if it is a memory operation or disassemble if this is an indirect jump/call 
+- Display memory maps. Go to hex dump from maps view
 
 ## Capstone
 
