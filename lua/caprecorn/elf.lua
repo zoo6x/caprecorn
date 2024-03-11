@@ -33,7 +33,7 @@ local _addresses = {
     gdt_addr = 0x30000,
     gdt_limit = 0x1000,
     gdt_entry_size = 0x8,
-    gdt_entries = 16, -- ??
+    gdt_entries = 16,
   },
 }
 
@@ -87,6 +87,7 @@ local function x8664_init(addr)
   x8664_init_gdt(addr)
 end
 
+
 local init = {
   [M.arch.X86_64] = x8664_init,
 }
@@ -95,6 +96,88 @@ M.init = function()
   local arch = M.emu.arch
   local addresses = _addresses[arch]
   init[arch](addresses)
+end
+
+M.loadfile = function(filename)
+  local bytes
+
+  local fdesc = io.open(filename)
+  if fdesc ~= nil then
+    bytes = fdesc:read("*all")
+    fdesc:close()
+  else
+    error("Failed to open ELF file [%s]", filename)
+  end
+
+  M.load(bytes)
+end
+
+local ET_EXEC = 2
+local ET_DYN = 3
+
+local PT_LOAD = 1
+
+M.load = function(bytes)
+  local elf = bytes
+  local addresses = _addresses[M.emu.arch]
+  --TODO: map stack here as in QlLoaderELF? (Most likely they took the logic from Linux kernel)
+  -- Maybe better let user specify it explicitly
+  -- What is stack segment in ELF then, if we specify it on start?
+  print("ELF file size", #bytes)
+  local magic = elf:i32(0)
+  if magic ~= ("\127ELF"):i32() then
+    error("ELF magic identifier not found")
+  end
+
+  local load_addr
+  local e_type = elf:i16(0x10)
+  if e_type == ET_EXEC then
+    load_addr = 0
+  elseif e_type == ET_DYN then
+    load_addr = addresses.load_address
+  else
+    error(string.format("ELF type should be either EXEC or DYN, e_type=[%d]", e_type))
+  end
+
+  local ei_class = elf:i8(0x4)
+  local is_32 = ei_class == 1
+  local is_64 = ei_class == 2
+
+  if not is_32 and not is_64 then
+    error(string.format("ELF type should be either 32- or 64-bit, e_idend[EI_CLASS]=%d", ei_class))
+  end
+
+  local e_phnum
+  if is_32 then e_phnum = elf:i16(0x2c) else e_phnum = elf:i16(0x38) end
+  if e_phnum == 0xffff then
+    error("ELF program headers count >= 0xffff, unsupported")
+    --[[# If the number of program headers is greater than or equal to
+        # PN_XNUM (0xffff), this member has the value PN_XNUM
+        # (0xffff). The actual number of program header table entries
+        # is contained in the sh_info field of the section header at
+        # index 0.
+    ]]
+  end
+
+  local e_phoff
+  local e_phentsize
+  if is_32 then e_phoff = elf:i32(0x1c) else e_phoff = elf:i64(0x24) end
+  if is_32 then e_phentsize = elf:i16(0x2a) else e_phentsize = elf:i64(0x36) end
+
+  local segments = {}
+  for i = 0, e_phnum - 1 do
+    local segment_offset = e_phoff + i * e_phentsize
+    local p_type = elf:i32(segment_offset + 0x0)
+    if p_type == PT_LOAD then
+      local p_vaddr
+      if is_32 then p_vaddr = elf:i32(segment_offset + 0x08) else e_phentsize = elf:i64(segment_offset + 0x10) end
+
+      table.insert(segments, { segment_offset = segment_offset, p_vaddr = p_vaddr, })
+    end
+  end
+  table.sort(segments, function(s1, s2) return s1.p_vaddr < s2.p_vaddr end)
+
+  --TODO: Continue at load_elf_segments(): for seg in load_segments: ...
 end
 
 return M
