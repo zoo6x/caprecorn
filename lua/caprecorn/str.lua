@@ -94,3 +94,13 @@ string.i64 = function(s, ofs)
   return s:bytes_le(ofs, 8)
 end
 
+string.cstr = function(s, ofs)
+  local res = ""
+  for i = ofs + 1, #s do
+    local c = s:sub(i, i)
+    if c == '\000' then break end
+    res = res .. c
+  end
+  return res
+end
+
