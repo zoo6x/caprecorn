@@ -68,6 +68,8 @@ size = 65536
 -- start = 0x000244
 -- size = 4096
 
+C.elf.loadfile(program)
+
 local fdesc = io.open(program)
 if fdesc ~= nil then
   local code = fdesc:read(size)
