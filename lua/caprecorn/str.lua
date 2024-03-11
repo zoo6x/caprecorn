@@ -1,6 +1,5 @@
 -- String used as a byte buffer
 
---TODO: Big endian will not work this way
 string.from = function(src, bytes)
   if type(src) == 'string' then
     return src

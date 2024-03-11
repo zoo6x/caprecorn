@@ -2,7 +2,7 @@
 -- Inspired by and stolen from Qiling
 local M = {}
 
-require("strbuf")
+require("str")
 local _log = require("_log")
 
 local _arch = require("arch")
@@ -178,6 +178,8 @@ M.load = function(bytes)
   table.sort(segments, function(s1, s2) return s1.p_vaddr < s2.p_vaddr end)
 
   --TODO: Continue at load_elf_segments(): for seg in load_segments: ...
+  -- But probably need to map stack, as in Qiling
+  -- And add display of memory mappings (from, to, size, permissions, name)...
 end
 
 return M
