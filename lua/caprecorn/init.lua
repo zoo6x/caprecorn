@@ -39,7 +39,7 @@ setmetatable(M.engine, { __call = function (_, engine)
       --TODO: separate Unicorn and Capstone
 
       M.emu.arch = M._arch
-      _unicorn.open(M._arch, M.reg)
+      _unicorn.open(M._arch, M.reg, M.emu)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
       M.dis.setup(M)
@@ -151,6 +151,10 @@ setmetatable(M.engine, { __call = function (_, engine)
     end
 
     M.mem.read = function(from, size)
+      if from == nil or size == nil then
+        error(string.format("Invalid parameters for mem_read from=[%s] size=[%s]", tostring(from), tostring(size)))
+      end
+
       local status, bytes_or_message = M._engine:mem_read(from, size)
 
       if not status then
