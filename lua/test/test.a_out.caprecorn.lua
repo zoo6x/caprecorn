@@ -10,9 +10,7 @@ C.disasm(C.disasm.CAPSTONE)
 
 _log.write("Before open")
 C.open()
-_log.write("Before mmap")
-C.mem.map(0x300000, 2^24)
-_log.write("After mmap")
+--C.mem.map(0x300000, 2^24)
 
 C.win.begin_layout()
 
@@ -52,50 +50,31 @@ dis_buf.on_change = function()
   C.reg.dump(segment_reg_buf)
 end
 
-local program, stack, addr, start, size
--- program = '/bin/ls'
--- addr = 0x07c000
--- size = 142144
+local program, stack, addr, start
 
-program = '/home/john/src/junk/a.out'
-stack = 0x3ffff0
-addr  = 0x400000
-start = 0x401000
-size = 65536
+--TODO: Tiniest ever ELF https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
+--program = '/home/john/src/junk/a.out'
+program = '/bin/ls'
 
--- program = '/home/john/src/junk/a.out'
--- addr =  0x000000
--- start = 0x000244
--- size = 4096
+local elf = C.elf.loadfile(program)
+local code = C.mem.read(elf.mem_start, elf.mem_size)
 
-C.elf.loadfile(program)
+stack = elf.stack_pointer
+start = elf.interp_entry
 
-local fdesc = io.open(program)
-if fdesc ~= nil then
-  local code = fdesc:read(size)
+C.reg.sp(stack)
+C.reg.pc(start)
 
+print(string.format("Stack addr = %016x size = %016x", elf.stack_addr, elf.stack_size))
+local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
+C.hex.dump(dump_buf, elf.stack_addr, #stack_bytes)
+dump_bottom.buf(dump_buf)
 
-  _log.write("Before mem write code size=" .. tostring(#code))
-  C.mem.write(addr, code)
-  _log.write("After mem write")
-  fdesc:close()
+C.dis.maxsize = 16384 --TODO: Why maxsize in opts does not work? 
+C.dis.dis(dis_buf, elf.mem_start, #code, { pc = C.reg.pc(), maxsize = 4096 })
 
+C.reg.dump(reg_buf)
+C.reg.dump(vector_reg_buf)
+C.reg.dump(segment_reg_buf)
 
-  C.reg.sp(stack)
-  C.reg.pc(start)
-
-  C.hex.dump(dump_buf, addr, #code)
-  dump_bottom.buf(dump_buf)
-  C.dis.maxsize = 16384 --TODO: Why maxsize in opts does not work? 
-  C.dis.dis(dis_buf, start, #code, { pc = C.reg.pc(), maxsize = 4096 })
-
-  C.reg.dump(reg_buf)
-  C.reg.dump(vector_reg_buf)
-  C.reg.dump(segment_reg_buf)
-
-  dis.focus()
-else
-  print("Faled to open program file!")
-end
-
---C.close()
+dis.focus()
