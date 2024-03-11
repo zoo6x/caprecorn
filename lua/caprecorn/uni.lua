@@ -1,6 +1,8 @@
 -- Unicorn and Capstone interfaces
 local M = {}
 
+M.emu = nil
+
 local _log
 _log = require("_log")
 
@@ -591,10 +593,14 @@ local arch_reg = {
 }
 
 -- Syscall hook
+-- https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
 
 local function syscall_callback(engine)
-  _log.write("SYSCALL hook")
-  M.engine:reg_write(x86_const.UC_X86_REG_R14, 0x1ee7115ebeef)
+  local rax = engine:reg_read(x86_const.UC_X86_REG_RAX)
+  local rip = engine:reg_read(x86_const.UC_X86_REG_RIP)
+  _log.write(string.format("SYSCALL at rip=%016x rax=%016x (%d)", rip, rax, rax))
+  engine:emu_stop()
+  M.emu.stop()
 end
 
 local function hook_syscall(engine)
@@ -608,11 +614,13 @@ end
 
 M.isopen = false
 
-M.open = function(_arch, reg)
+M.open = function(_arch, reg, emu)
   local params = arch_params[_arch]
   if params == nil then
     error(string.format("Architecture parameters undefined arch=[%s]", tostring(_arch)))
   end
+
+  M.emu = emu
 
   local engine = unicorn.open(params.unicorn_arch, params.unicorn_mode)
   --[[
