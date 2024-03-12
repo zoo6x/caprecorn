@@ -39,7 +39,7 @@ setmetatable(M.engine, { __call = function (_, engine)
       --TODO: separate Unicorn and Capstone
 
       M.emu.arch = M._arch
-      _unicorn.open(M._arch, M.reg, M.emu)
+      _unicorn.open(M._arch, M.reg, M.emu, M.mem)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
       M.dis.setup(M)
@@ -147,6 +147,14 @@ setmetatable(M.engine, { __call = function (_, engine)
 
       if not status then
         error(string.format("Error [%s] when trying to map %d bytes at address 0x%x", err, size, from))
+      end
+    end
+
+    M.mem.unmap = function(from, size)
+      local status, err = M._engine:mem_unmap(from, size)
+
+      if not status then
+        error(string.format("Error [%s] when trying to unmap %d bytes at address 0x%x", err, size, from))
       end
     end
 
