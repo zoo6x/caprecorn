@@ -6,6 +6,8 @@ M.emu = nil
 local _log
 _log = require("_log")
 
+local sys = require("sys")
+
 -- Dependencies: Unicorn and Capstone
 local unicorn = require("unicorn")
 local unicorn_const = require("unicorn.unicorn_const")
@@ -596,11 +598,46 @@ local arch_reg = {
 -- https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
 
 local function syscall_callback(engine)
-  local rax = engine:reg_read(x86_const.UC_X86_REG_RAX)
   local rip = engine:reg_read(x86_const.UC_X86_REG_RIP)
-  _log.write(string.format("SYSCALL at rip=%016x rax=%016x (%d)", rip, rax, rax))
-  engine:emu_stop()
-  M.emu.stop()
+  local rax = engine:reg_read(x86_const.UC_X86_REG_RAX)
+  local rdi = engine:reg_read(x86_const.UC_X86_REG_RDI)
+  local rsi = engine:reg_read(x86_const.UC_X86_REG_RSI)
+  local rdx = engine:reg_read(x86_const.UC_X86_REG_RDX)
+  local r10 = engine:reg_read(x86_const.UC_X86_REG_R10)
+  local r8  = engine:reg_read(x86_const.UC_X86_REG_R9)
+  local r9  = engine:reg_read(x86_const.UC_X86_REG_R8)
+
+  local syscall = M.syscall[rax]
+
+  local handler
+  local name = ""
+  local params = 6
+  if syscall ~= nil then
+    handler = syscall.handler
+    name = syscall.name or "?"
+    params = syscall.params or 6
+  end
+  local param_fmt = string.rep("%016x ", params)
+
+  _log.write(string.format("SYSCALL %3d at %016x %-10s " .. param_fmt,
+    rax, rip, name, rdi, rsi, rdx, r10, r8, r9))
+
+  local stop_emulation = false
+  if handler ~= nil then
+    local res, extra_param
+    res, stop_emulation, extra_param = handler(rdi, rsi, rdx, r10, r8, r9)
+    if not stop_emulation then
+      engine:reg_write(x86_const.UC_X86_REG_RAX, res)
+      _log.write(string.format("SYSCALL res =  %016x", res))
+    end
+  else
+    stop_emulation = true
+  end
+
+  if stop_emulation then
+    engine:emu_stop()
+    M.emu.stop()
+  end
 end
 
 local function hook_syscall(engine)
@@ -614,7 +651,7 @@ end
 
 M.isopen = false
 
-M.open = function(_arch, reg, emu)
+M.open = function(_arch, reg, emu, mem)
   local params = arch_params[_arch]
   if params == nil then
     error(string.format("Architecture parameters undefined arch=[%s]", tostring(_arch)))
@@ -633,6 +670,10 @@ M.open = function(_arch, reg, emu)
   end
   ]]
   M.engine = engine
+
+  sys.mem = mem
+  sys.emu = emu
+  M.syscall = sys.syscall[_arch]
 
   reg._arch = _arch
   reg.def = arch_reg[_arch]
