@@ -604,8 +604,8 @@ local function syscall_callback(engine)
   local rsi = engine:reg_read(x86_const.UC_X86_REG_RSI)
   local rdx = engine:reg_read(x86_const.UC_X86_REG_RDX)
   local r10 = engine:reg_read(x86_const.UC_X86_REG_R10)
-  local r8  = engine:reg_read(x86_const.UC_X86_REG_R9)
-  local r9  = engine:reg_read(x86_const.UC_X86_REG_R8)
+  local r8  = engine:reg_read(x86_const.UC_X86_REG_R8)
+  local r9  = engine:reg_read(x86_const.UC_X86_REG_R9)
 
   local syscall = M.syscall[rax]
 
@@ -637,6 +637,8 @@ local function syscall_callback(engine)
   if stop_emulation then
     engine:emu_stop()
     M.emu.stop()
+    M.emu.stop_pc = rip
+    _log.write(string.format("Emulation stopped at %016x", M.emu.stop_pc))
   end
 end
 
@@ -669,11 +671,18 @@ M.open = function(_arch, reg, emu, mem)
       tostring(params.unicorn_mode)))
   end
   ]]
+  engine:ctl_exits_enable()
+
   M.engine = engine
 
   sys.mem = mem
   sys.emu = emu
+  sys.reg = reg
   M.syscall = sys.syscall[_arch]
+
+  mem.PROT_EXEC = unicorn_const.UC_PROT_EXEC
+  mem.PROT_READ = unicorn_const.UC_PROT_READ
+  mem.PROT_WRITE = unicorn_const.UC_PROT_WRITE
 
   reg._arch = _arch
   reg.def = arch_reg[_arch]
@@ -708,6 +717,7 @@ M.open = function(_arch, reg, emu, mem)
 
   -- Syscall hook
   hook_syscall(engine)
+  --TODO: hook HALT? Unicorn documentation doesnot say it is supported
 
   local status, handle
   status, handle = capstone.open(params.capstone_arch, params.capstone_mode)

@@ -2,7 +2,7 @@ local M = {}
 
 -- Debug log
 local _log
--- _log = require("_log")
+_log = require("_log")
 
 -- Supported architectures
 local arch = require("arch")
@@ -103,12 +103,19 @@ setmetatable(M.engine, { __call = function (_, engine)
         return
       end
       local last_pc = M.reg.pc()
+      M._engine:ctl_exits_disable()
       local res, status = M._engine:emu_start(M.reg.pc(), -1, 0, 1)
+      M._engine:ctl_exits_enable()
       if not res then
         print(string.format("Error at PC=%016x", M.reg.pc()))
         error(status)
       else
         print(string.format("Step succeeded, previous PC=%016x, current PC=%016x", last_pc, M.reg.pc()))
+      end
+      if M.emu.stop_pc ~= nil then
+        M.reg.pc(M.emu.stop_pc)
+        _log.write(string.format("Reverted to PC=%016x", M.emu.stop_pc))
+        M.emu.stop_pc = nil
       end
     end
 
@@ -116,6 +123,7 @@ setmetatable(M.engine, { __call = function (_, engine)
 
     M.emu.run = function()
       if not M.stopped() then
+
         print("Emulator is already running")
         return
       end
@@ -126,27 +134,42 @@ setmetatable(M.engine, { __call = function (_, engine)
         if M.stopped() then
           idle:stop()
           print(string.format("Emulator stopped at PC=%016x", M.reg.pc()))
+          if M.emu.stop_pc ~= nil then
+            M.reg.pc(M.emu.stop_pc)
+            _log.write(string.format("Reverted to PC=%016x", M.emu.stop_pc))
+            M.emu.stop_pc = nil
+          end
           return
         end
-        local res, status = M.start(M.reg.pc(), -1, 0, 101)
+        local res, status = M.start(M.reg.pc(), -1, 0, 100)
         if not res then
           idle:stop()
           M._stopped = true
           print(string.format("Error at PC=%016x", M.reg.pc()))
-          error(status)
+          -- error(status)
         end
       end)
+    end
+
+    M.emu.set_breakpoints = function(address_list)
+      M._engine:ctl_set_exits(address_list)
     end
 
     M.stop = function()
       M._engine:emu_stop()
     end
 
+    M.mem.map_safe = function(from, size)
+      _log.write(string.format("MEMORY MAP address = %016x size = %x", from, size))
+      return M._engine:mem_map(from, size)
+    end
+
     M.mem.map = function(from, size)
+      _log.write(string.format("MEMORY MAP address = %016x size = %x", from, size))
       local status, err = M._engine:mem_map(from, size)
 
       if not status then
-        error(string.format("Error [%s] when trying to map %d bytes at address 0x%x", err, size, from))
+        error(string.format("Error [%s] when trying to map %d bytes at address %016x", err, size, from))
       end
     end
 
@@ -154,8 +177,22 @@ setmetatable(M.engine, { __call = function (_, engine)
       local status, err = M._engine:mem_unmap(from, size)
 
       if not status then
-        error(string.format("Error [%s] when trying to unmap %d bytes at address 0x%x", err, size, from))
+        error(string.format("Error [%s] when trying to unmap %d bytes at address %016x", err, size, from))
       end
+    end
+
+    M.mem.read_safe = function(from, size)
+      if from == nil or size == nil then
+        return false, string.format("Invalid parameters for mem_read from=[%s] size=[%s]", tostring(from), tostring(size))
+      end
+
+      local status, bytes_or_message = M._engine:mem_read(from, size)
+
+      if not status then
+        bytes_or_message = string.format("Error [%s] when trying to read %d bytes from address 0x%x", bytes_or_message, size, from)
+      end
+
+      return status, bytes_or_message
     end
 
     M.mem.read = function(from, size)

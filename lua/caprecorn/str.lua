@@ -104,3 +104,19 @@ string.cstr = function(s, ofs)
   return res
 end
 
+-- Add enough padding at string end or cut it so that the resulting length is exactly to size
+string.rpadtrunc = function(s, size, padding)
+  if #s == size then
+    return s
+  end
+  if #s > size then
+    return s:sub(1, size)
+  end
+
+  if padding == nil then
+    padding = '\000'
+  end
+
+  return s .. string.rep(padding, #s - size)
+end
+

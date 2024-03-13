@@ -5,7 +5,7 @@ local M = {}
 M.mem = nil
 
 -- To avoid dumping gigabytes or more of memory. User can change this, if needed
-M.maxsize = 1024 * 1024
+M.maxsize = 4096 -- 1024 * 1024
 
 M.setup = function(mem)
   M.mem = mem

@@ -1,6 +1,6 @@
 --
 C = require('caprecorn')
-_log = require('_log')
+local _log = require('_log')
 _log.write("LOG STARTED")
 
 C.arch(C.arch.X86_64)
@@ -10,7 +10,6 @@ C.disasm(C.disasm.CAPSTONE)
 
 _log.write("Before open")
 C.open()
---C.mem.map(0x300000, 2^24)
 
 C.win.begin_layout()
 
@@ -53,11 +52,14 @@ end
 local program, stack, addr, start
 
 --TODO: Tiniest ever ELF https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
---program = '/home/john/src/junk/a.out'
-program = '/bin/ls'
+program = '/home/john/src/junk/a.out'
+-- program = '/bin/ls'
 
-local elf = C.elf.loadfile(program)
-local code = C.mem.read(elf.mem_start, elf.mem_size)
+local elf = C.elf.loadfile(program, { argv = { program }, })
+
+-- C.emu.set_breakpoints({ 0x00007ffff7df3f66 })
+
+local code = C.mem.read(elf.mem_start, 0x4000)
 
 stack = elf.stack_pointer
 start = elf.interp_entry
@@ -67,7 +69,7 @@ C.reg.pc(start)
 
 print(string.format("Stack addr = %016x size = %016x", elf.stack_addr, elf.stack_size))
 local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
-C.hex.dump(dump_buf, elf.stack_addr, #stack_bytes)
+C.hex.dump(dump_buf, 0x00007ffff7e04000, 4096)
 dump_bottom.buf(dump_buf)
 
 C.dis.maxsize = 16384 --TODO: Why maxsize in opts does not work? 

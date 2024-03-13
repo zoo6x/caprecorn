@@ -2,6 +2,10 @@
 
 local M = {}
 
+-- Needed for register constants
+-- Yes, abstraction leaks here
+local capstone = require("capstone")
+
 M.mem = nil
 M.reg = nil
 M.disasm = nil
@@ -31,6 +35,9 @@ local REF_CALL = 1
 local REF_JUMP = 2
 
 M.refs = {}
+
+-- Breakpoints
+M.brk = {}
 
 -- To avoid disassembling gigabytes or more of code. User can change this, if needed
 M.maxsize = 64 * 1024
@@ -80,7 +87,7 @@ local function insn_refs(insn, refs)
   if iscall or isjump then
     if insn.detail.x86 ~= nil then
       if insn.detail.x86.op_count == 1 then
-        if insn.detail.x86.operands[1].type == 2 then -- IMM
+        if insn.detail.x86.operands[1].type == capstone.X86_OP_IMM then
           local dest = insn.detail.x86.operands[1].imm
 
           local ref = refs[dest]
@@ -121,6 +128,29 @@ local function insn_refs(insn, refs)
   end
 
   return ""
+end
+
+local function insn_access_addr(insn, addr)
+  local res = nil
+
+  if insn.detail.x86 ~= nil then
+    for i = 1, insn.detail.x86.op_count do
+      if insn.detail.x86.operands[i].type == capstone.X86_OP_MEM then
+        local base = insn.detail.x86.operands[i].mem.base
+        if base == capstone.X86_REG_RIP or base == capstone.X86_REG_EIP then
+          local disp = insn.detail.x86.operands[i].mem.disp
+          -- Assume displacement is 32 bits maximum
+          if disp > 0x7fffffff then
+            disp = -disp
+          end
+          res = addr + insn.size + disp
+          break
+        end
+      end
+    end
+  end
+
+  return res
 end
 
 local function dis(start, bytes, opts)
@@ -225,9 +255,14 @@ local function dis(start, bytes, opts)
     end
 
     insn_refs(it.insn, M.refs)
+    local access_addr = insn_access_addr(it.insn, addr)
+    local access_addr_str = ""
+    if access_addr ~= nil then
+      access_addr_str = string.format(" (%016x)", access_addr)
+    end
 
-    local line = string.format("%016x   %-24s %-10s %-42s [%s<= %s]",
-      addr, bytes_str, it.insn.mnemonic, it.insn.op_str, regs_write_str, regs_read_str)
+    local line = string.format("%016x   %-24s %-10s %-42s", -- [%s<= %s]",
+      addr, bytes_str, it.insn.mnemonic, it.insn.op_str .. access_addr_str) --, regs_write_str, regs_read_str)
 
     table.insert(lines, line)
 
@@ -396,14 +431,20 @@ local function setup_keymaps(buffer)
     { buffer = buffer.handle(), desc = "Go to address"}
   )
 
-  vim.keymap.set('n', 'gP',
+  vim.keymap.set('n', 'gp',
     function()
       local addr = M.reg.pc()
 
       buffer:jump(addr)
-
     end,
     { buffer = buffer.handle(), desc = "Go to PC"}
+  )
+
+  vim.keymap.set('n', 'bd',
+    function()
+      M.emu.set_breakpoints({})
+    end,
+    { buffer = buffer.handle(), desc = "Delete breakpoints"}
   )
 
   local show_running_status = function()

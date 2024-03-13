@@ -2,7 +2,7 @@
 -- Inspired by and stolen from Qiling
 local M = {}
 
-require("bit")
+local bit = require("bit")
 
 require("str")
 
@@ -10,6 +10,9 @@ local _log = require("_log")
 
 local _arch = require("arch")
 M.arch = _arch.arch
+
+-- Assign mmap_address here
+local sys = require("sys")
 
 M.setup = function(emu, mem, reg)
   M.emu = emu
@@ -37,10 +40,12 @@ local _addresses = {
     pointer_size = 8,
 
     stack_address = 0x7ffffffde000,
-    stack_size = 0x21000,
+    -- stack_size = 0x21000,
+    stack_size = 0x30000,
     load_address = 0x555555554000,
-    interp_address = 0x7ffff7fcf000,
-    mmap_address = 0x7fffb7dd6000,
+    -- interp_address = 0x7ffff7fcf000,
+    interp_address = 0x7ffff7dd5000,
+    mmap_address   = 0x7fffb7dd6000,
     vsyscall_address = 0xffffffffff600000,
 
     gdt_addr = 0x30000,
@@ -57,6 +62,7 @@ local loader_params = {
 
 local function x8664_init_gdt(addr)
   -- Map memory for GDT
+  _log.write("Mapping GDT")
   M.mem.map(addr.gdt_addr, addr.gdt_limit)
 
   -- Initailize GDTR
@@ -150,6 +156,10 @@ local ET_DYN = 3
 local PT_LOAD = 1
 local PT_INTERP = 3
 
+local PF_EXEC = 1
+local PF_WRITE = 2
+local PF_READ = 4
+
 local AUXV = {
     AT_NULL     = 0,
     AT_IGNORE   = 1,
@@ -177,6 +187,7 @@ local AUXV = {
 }
 
 M.load = function(bytes, opts)
+  _log.write("ELF load start")
   local res = {}
 
   opts = opts or {}
@@ -186,6 +197,7 @@ M.load = function(bytes, opts)
 
   local stack_addr = addresses.stack_address + addresses.stack_size
   if opts.map_stack ~= false then
+    _log.write("Mapping stack")
     M.mem.map(addresses.stack_address, addresses.stack_size)
     _log.write(string.format("Stack: %016x - %016x", addresses.stack_address, stack_addr))
     res.sp = stack_addr
@@ -246,20 +258,25 @@ M.load = function(bytes, opts)
   for i = 0, e_phnum - 1 do
     local segment_offset = e_phoff + i * e_phentsize
     local p_type = elf:i32(segment_offset + 0x0)
-    _log.write(string.format("Segment %2d offset = %016x p_type = %08x", i, segment_offset, p_type))
+    local p_flags
+    local p_vaddr
+    local p_memsz
+    local p_filesz
     local p_offset
+    if is_32 then p_flags = elf:i32(segment_offset + 0x18) else p_flags = elf:i32(segment_offset + 0x04) end
+    if is_32 then p_vaddr = elf:i32(segment_offset + 0x08) else p_vaddr = elf:i64(segment_offset + 0x10) end
+    if is_32 then p_memsz = elf:i32(segment_offset + 0x14) else p_memsz = elf:i64(segment_offset + 0x28) end
+    if is_32 then p_filesz = elf:i32(segment_offset + 0x10) else p_filesz = elf:i64(segment_offset + 0x20) end
     if is_32 then p_offset = elf:i32(segment_offset + 0x04) else p_offset = elf:i64(segment_offset + 0x08) end
+    _log.write(string.format("Segment %2d offset = %016x p_type = %08x p_flags = %08x p_offset = %08x p_memsz = %08x p_filesz = %08x",
+      i, segment_offset, p_type, p_flags, p_offset, p_memsz, p_filesz))
     if p_type == PT_LOAD then
-      local p_vaddr
-      local p_memsz
-      local p_flags = elf:i32(segment_offset + 0x18)
-      if is_32 then p_vaddr = elf:i32(segment_offset + 0x08) else p_vaddr = elf:i64(segment_offset + 0x10) end
-      if is_32 then p_memsz = elf:i32(segment_offset + 0x14) else p_memsz = elf:i64(segment_offset + 0x28) end
 
       local segment = {
         p_offset = p_offset,
         p_vaddr = p_vaddr,
         p_memsz = p_memsz,
+        p_filesz = p_filesz,
         p_flags = p_flags,
       }
       table.insert(load_segments, segment)
@@ -269,30 +286,48 @@ M.load = function(bytes, opts)
   end
   table.sort(load_segments, function(s1, s2) return s1.p_vaddr < s2.p_vaddr end)
 
-  --TODO: Continue at load_elf_segments(): for seg in load_segments: ...
-  -- But probably need to map stack, as in Qiling
-  -- And add display of memory mappings (from, to, size, permissions, name)...
+  local function seg_perm_to_uc_prot(perm)
+    local prot = 0
+
+    if bit.band(perm, PF_EXEC) ~= 0 then
+        prot = bit.bor(prot, M.mem.PROT_EXEC)
+    end
+
+    if bit.band(perm, PF_WRITE) ~= 0 then
+        prot = bit.bor(prot, M.mem.PROT_WRITE)
+    end
+
+    if bit.band(perm, PF_READ) ~= 0 then
+        prot = bit.bor(prot, M.mem.PROT_READ)
+    end
+
+    return prot
+  end
 
   _log.write("Load segments:")
   local load_regions = {}
   for i, segment in ipairs(load_segments) do
     local lbound = load_addr + segment.p_vaddr
     local ubound = lbound + segment.p_memsz
-    _log.write(string.format("%5d  %016x - %016x ", i, lbound, ubound))
+    local perms = seg_perm_to_uc_prot(segment.p_flags)
+    _log.write(string.format("%5d  %016x - %016x perms = %d", i, lbound, ubound, perms))
     lbound = align(lbound, PAGESIZE)
     ubound = align_up(ubound, PAGESIZE)
-    --TODO: Map ELF segment protection flags to Unicorn 
     if #load_regions > 0 then
-      local prev_lbound, prev_ubound = unpack(load_regions[#load_regions])
+      local prev_lbound, prev_ubound, prev_perms = unpack(load_regions[#load_regions])
       if lbound == prev_ubound then
-        load_regions[#load_regions] = { prev_lbound, ubound }
+        if perms == prev_perms then
+          load_regions[#load_regions] = { prev_lbound, ubound, prev_perms }
+        else
+          load_regions[#load_regions + 1] = { lbound, ubound, perms }
+        end
       elseif lbound > prev_ubound then
-        load_regions[#load_regions + 1] = { lbound, ubound }
+        load_regions[#load_regions + 1] = { lbound, ubound, perms }
       elseif lbound < prev_ubound then
         error("Overlapping segments")
       end
     else
-      table.insert(load_regions, { lbound, ubound })
+      table.insert(load_regions, { lbound, ubound, perms })
     end
   end
 
@@ -300,14 +335,11 @@ M.load = function(bytes, opts)
   for i, region in ipairs(load_regions) do
     local lbound = region[1]
     local ubound = region[2]
+    local perms = region[3]
     local start = lbound
-    local size = ubound - lbound 
-    _log.write(string.format("%5d  %016x - %016x  size = %016x", i, lbound, ubound, size))
-    --TODO: Unlike Qiling, we map the area that contains all the load segments,
-    -- even if there are gaps between them. This makes it easier to deal with unmapped reads/writes
-    -- But later we need to follow the same approach, as in Qiling, and make handling unmapped memory  access
-    -- friendly to user
-    -- M.mem.map(start, size)
+    local size = ubound - lbound
+    _log.write(string.format("%5d  %016x - %016x  size = %016x perms = %d", i, lbound, ubound, size, perms))
+    M.mem.map(start, size, perms)
   end
 
   local mem_start = 0
@@ -320,17 +352,17 @@ M.load = function(bytes, opts)
   end
   mem_size = mem_end - mem_start
 
-  M.mem.map(mem_start, mem_size)
-
   res.mem_start = mem_start
   res.mem_end = mem_end
   res.mem_size = mem_size
 
   _log.write(string.format("Memory %016x - %016x", mem_start, mem_end))
 
-  for _, segment in ipairs(load_segments) do
-    local segment_bytes = elf:sub(segment.p_offset + 1, segment.p_offset + segment.p_memsz)
+  _log.write("Writing segments:")
+  for i, segment in ipairs(load_segments) do
+    local segment_bytes = elf:sub(segment.p_offset + 1, segment.p_offset + segment.p_filesz)
     M.mem.write(load_addr + segment.p_vaddr, segment_bytes)
+    _log.write(string.format("%5d  %016x size = %016x p_offset = %016x", i, load_addr + segment.p_vaddr, #segment_bytes, segment.p_offset))
   end
 
   local e_entry
@@ -358,10 +390,11 @@ M.load = function(bytes, opts)
     return res
   end
 
-  res.brk_address = mem_end + 0x2000
+  M.emu.brk_addr = mem_end + 0x2000
 
-  --???
-  res.mmap_address = addresses.mmap_address
+  -- Assign mmap_address for mmap syscall address to use
+  -- TODO: Ugly, but temporary
+  sys.mmap_addr = addresses.mmap_address
 
   local function push_str(top, s)
     local data = s .. '\000'
@@ -480,6 +513,7 @@ M.load = function(bytes, opts)
 
   --TODO: intercept syscalls, see qiling/os/posix/syscall/
 
+  _log.write("ELF load finish")
   return res
 end
 
