@@ -141,6 +141,7 @@ setmetatable(M.engine, { __call = function (_, engine)
           end
           return
         end
+
         local res, status = M.start(M.reg.pc(), -1, 0, 100)
         if not res then
           idle:stop()
@@ -148,6 +149,8 @@ setmetatable(M.engine, { __call = function (_, engine)
           print(string.format("Error at PC=%016x", M.reg.pc()))
           -- error(status)
         end
+        --TODO: Need to detect stopping on a set_breakpoints
+        --TODO: Re-set breakpoints after one has been hit. ctl_get_exits()
       end)
     end
 
