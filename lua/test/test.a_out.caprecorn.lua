@@ -52,12 +52,12 @@ end
 local program, stack, addr, start
 
 --TODO: Tiniest ever ELF https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
-program = '/home/john/src/junk/a.out'
+program = '/home/john/src/junk/stat'
 -- program = '/bin/ls'
 
 local elf = C.elf.loadfile(program, { argv = { program }, })
 
--- C.emu.set_breakpoints({ 0x00007ffff7df3f66 })
+C.emu.set_breakpoints({ 0x00007ffff7df3d37, 0x00007ffff7df3d39 })
 
 local code = C.mem.read(elf.mem_start, 0x4000)
 
