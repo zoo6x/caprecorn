@@ -13,3 +13,4 @@
 
   * https://malwareandstuff.com/blog/
 
+  * https://hxp.io/blog/16/CONFidence-CTF-2015-Reversing-400-Deobfuscate-Me-writeup/

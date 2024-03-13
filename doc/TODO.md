@@ -8,16 +8,19 @@
 
 ### Core
 
++ Hook each instruction and write trace and compare
+- Hook RDTSC to provide deterministic results (w/a sequential execution? Need exact tick counts)
+
 - Lua 5.1 does not work properly with 64-bit integers. Maybe return them as two 32-bit integers when needed? Implement i64 class?
   See https://github.com/cloudwu/lua-int64, also 
   Actually, we need only 48 bits for addresses, and sign-extend, if needed (LuaJIT and Lua 5.1 should support 53-bit integers precisely)
   For register values, 2 32-bit integers can be returned and handled properly
-  unicorn-lua and LuaCapstone probably need to be modified to support this
-- How does Unicorn/Qemu execute SYSCALL w/o emulation or hooks? 
+  unicorn-lua probably needs to be modified to support this
++ How does Unicorn/Qemu execute SYSCALL w/o emulation or hooks? 
 + Rename from Qiling to Caprecorn. Or Qrx
 + Buf module for buffers: hex, dis, map, reg, stack...
 + Do not expose Unicorn and Capstone, provide access via Caprecorn
-- Mapping between Unicorn and Capstone registers
++ Mapping between Unicorn and Capstone registers
 - Allow multiple hooks (including internal and user-defined)
 - Allow NVim-less scripting for debugging or standalone (if vim ~= nil then...)
 + For start/stop/mem and other functions add stubs that error if used before initialization
