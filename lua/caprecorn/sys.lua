@@ -208,13 +208,19 @@ local function sys_fstat(fd, p_statbuf)
   local size = fd_info.file:seek("end")
   fd_info.file:seek("set", current)
 
-  _log.write(string.format("fstat filename=[%s] statbuf=%016x file size=%d", filename, p_statbuf, size))
+  _log.write(string.format("fstat filename=[%s] statbuf=%016x file size=%d", fd_info.name, p_statbuf, size))
 
   -- struct stat size is 144 bytes
   -- st_size is at offset 48, a 64-bit integer 
   local bytes = string.rep('\000', 48)
-  bytes = bytes:append(string.from(size, 8))
+  bytes = bytes:append(string.from(size, 8)) -- st_size
+  bytes = bytes:append(string.from(4096, 8)) -- st_blksize 
+  bytes = bytes:append(string.from(math.floor(size / 512), 8)) -- st_blocks
   bytes = bytes:rpadtrunc(144, '\000')
+  local dump = hex.hex(p_statbuf, bytes, { show_chars = true })
+  for _, line in ipairs(dump) do
+    _log.write(line)
+  end
 
   local status, error = M.mem.write(p_statbuf, bytes)
   if status == false then
@@ -322,7 +328,29 @@ local function sys_munmap(addr, len)
   return 0
 end
 
-local function sys_writev(fd, p_iovec, value_index)
+local function sys_writev(fd, p_iov, count)
+  local res = 0
+  -- struct iov size=16
+   _log.write(string.format("Reading iov addr=%016x count=%d", p_iov, count))
+  local status, vectors = M.mem.read_safe(p_iov, count * 16)
+
+  if status == false then
+    _log.write(string.format("Memory read error [%s]", vectors))
+    return nil, true
+  end
+
+  for i = 0, count - 1 do
+    local addr = vectors:i64(i * 16 + 0)
+    local size = vectors:i64(i * 16 + 8)
+
+    _log.write(string.format("Writing iov %2d addr=%016x size=%x", i + 1, addr, size))
+
+    res = sys_write(fd, addr, size)
+    if res < 0 then
+      return res
+    end
+  end
+
   return 0
 end
 
