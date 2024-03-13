@@ -117,6 +117,6 @@ string.rpadtrunc = function(s, size, padding)
     padding = '\000'
   end
 
-  return s .. string.rep(padding, #s - size)
+  return s .. string.rep(padding, size - #s)
 end
 
