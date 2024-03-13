@@ -7,6 +7,10 @@ M.mmap_addr = nil
 
 local _log = require("_log")
 
+-- Dump read/write buffers to the log file
+M.log_dump = false
+
+
 local arch = require("arch")
 M.arch = arch.arch
 
@@ -89,6 +93,15 @@ local function mem_read_cstring(addr)
   return res
 end
 
+local function log_dump(addr, bytes)
+  if M.log_dump == false then return end
+
+  local dump = hex.hex(addr, bytes, { show_chars = true })
+  for _, line in ipairs(dump) do
+    _log.write(line)
+  end
+end
+
 -- Open files
 M.fds = {
   last_fd = 2,
@@ -110,10 +123,7 @@ local function sys_read(fd, p_buf, count)
     _log.write(string.format("Read error [%s]", tostring(bytes)))
   end
   _log.write(string.format("Read %d bytes", #bytes))
-  local dump = hex.hex(p_buf, bytes, { show_chars = true })
-  for _, line in ipairs(dump) do
-    _log.write(line)
-  end
+  log_dump(p_buf, bytes)
 
   local status, error = M.mem.write(p_buf, bytes)
   if status == false then
@@ -153,10 +163,7 @@ local function sys_write(fd, p_buf, count)
   end
 
   _log.write(string.format("Writing %d bytes to file name=[%s]", count, filename))
-  local dump = hex.hex(p_buf, bytes, { show_chars = true })
-  for _, line in ipairs(dump) do
-    _log.write(line)
-  end
+  log_dump(p_buf, bytes)
 
   if fd == 1 or fd == 2 then
     -- This damages Nvim UI
@@ -217,10 +224,12 @@ local function sys_fstat(fd, p_statbuf)
   bytes = bytes:append(string.from(4096, 8)) -- st_blksize 
   bytes = bytes:append(string.from(math.floor(size / 512), 8)) -- st_blocks
   bytes = bytes:rpadtrunc(144, '\000')
-  local dump = hex.hex(p_statbuf, bytes, { show_chars = true })
-  for _, line in ipairs(dump) do
-    _log.write(line)
+
+  if fd_info.name == "/lib/x86_64-linux-gnu/libc.so.6" then
+    bytes = "\000\001\002\003\004\005\006\007\008\009\010\011\012\013\014\015\016\017\018\019\020\021\022\023\024\025\026\027\028\029\030\031\032\033\034\035\036\037\038\039\040\041\042\043\044\045\046\047\048\049\050\051\052\053\054\055\056\057\058\059\060\061\062\063\064\065\066\067\068\069\070\071\072\073\074\075\076\077\078\079\080\081\082\083\084\085\086\087\088\089\090\091\092\093\094\095\096\097\098\099\100\101\102\103\104\105\106\107\108\109\110\111\112\113\114\115\116\117\118\119\120\121\122\123\124\125\126\127\128\129\130\131\132\133\134\135\136\137\138\139\140\141\142\143"
   end
+
+  log_dump(p_statbuf, bytes)
 
   local status, error = M.mem.write(p_statbuf, bytes)
   if status == false then
@@ -275,10 +284,7 @@ local function sys_pread64(fd, p_buf, count, pos)
     _log.write(string.format("Read error [%s]", tostring(bytes)))
   end
   _log.write(string.format("Read %d bytes", #bytes))
-  local dump = hex.hex(p_buf, bytes, { show_chars = true })
-  for _, line in ipairs(dump) do
-    _log.write(line)
-  end
+  log_dump(p_buf, bytes)
 
   local status, error = M.mem.write(p_buf, bytes)
   if status == false then
