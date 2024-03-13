@@ -163,12 +163,12 @@ setmetatable(M.engine, { __call = function (_, engine)
     end
 
     M.mem.map_safe = function(from, size)
-      _log.write(string.format("MEMORY MAP address = %016x size = %x", from, size))
+      _log.write(string.format("MEMORY MAP address = %016x - %016x size = %x", from, from + size, size))
       return M._engine:mem_map(from, size)
     end
 
     M.mem.map = function(from, size)
-      _log.write(string.format("MEMORY MAP address = %016x size = %x", from, size))
+      _log.write(string.format("MEMORY MAP address = %016x - %016x size = %x", from, from + size, size))
       local status, err = M._engine:mem_map(from, size)
 
       if not status then
