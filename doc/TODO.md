@@ -2,15 +2,11 @@
 
 ## Caprecorn
 
-### Organisational
-
-- Find interesting/obfuscated malware samples or CTF challenges (see links in [CTF.md])
-
 ### Core
 
+- Breakpoints do not work after first hit. Why?
 + Hook each instruction and write trace and compare
 - Hook RDTSC to provide deterministic results (w/a sequential execution? Need exact tick counts)
-
 - Lua 5.1 does not work properly with 64-bit integers. Maybe return them as two 32-bit integers when needed? Implement i64 class?
   See https://github.com/cloudwu/lua-int64, also 
   Actually, we need only 48 bits for addresses, and sign-extend, if needed (LuaJIT and Lua 5.1 should support 53-bit integers precisely)
