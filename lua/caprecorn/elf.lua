@@ -44,8 +44,8 @@ local _addresses = {
     stack_size = 0x30000,
     load_address = 0x555555554000,
     -- interp_address = 0x7ffff7fcf000,
-    interp_address = 0x7ffff7dd5000,
-    mmap_address   = 0x7fffb7dd6000,
+    interp_address = 0x00007ffff7fcf000, -- 0x7ffff7dd5000,
+    mmap_address   = 0x00007ffff7fc9000, -- 0x7fffb7dd6000,
     vsyscall_address = 0xffffffffff600000,
 
     gdt_addr = 0x30000,
@@ -53,11 +53,6 @@ local _addresses = {
     gdt_entry_size = 0x8,
     gdt_entries = 16,
   },
-}
-
-local loader_params = {
-  env = {},
-  argv = {},
 }
 
 local function x8664_init_gdt(addr)
@@ -135,20 +130,6 @@ M.loadfile = function(filename, opts)
 end
 
 -- Loading ELF
-
-local PAGESIZE = 4096
-
-local function align(addr, size)
-  return addr - addr % size
-end
-
-local function align_up(addr, size)
-  if addr % size == 0 then
-    return addr
-  else
-    return align(addr + size, size)
-  end
-end
 
 local ET_EXEC = 2
 local ET_DYN = 3
@@ -311,8 +292,8 @@ M.load = function(bytes, opts)
     local ubound = lbound + segment.p_memsz
     local perms = seg_perm_to_uc_prot(segment.p_flags)
     _log.write(string.format("%5d  %016x - %016x perms = %d", i, lbound, ubound, perms))
-    lbound = align(lbound, PAGESIZE)
-    ubound = align_up(ubound, PAGESIZE)
+    lbound = M.mem.align(lbound, M.mem.PAGESIZE)
+    ubound = M.mem.align_up(ubound, M.mem.PAGESIZE)
     if #load_regions > 0 then
       local prev_lbound, prev_ubound, prev_perms = unpack(load_regions[#load_regions])
       if lbound == prev_ubound then
@@ -398,7 +379,7 @@ M.load = function(bytes, opts)
 
   local function push_str(top, s)
     local data = s .. '\000'
-    top = align(top - #data, addresses.pointer_size)
+    top = M.mem.align(top - #data, addresses.pointer_size)
     M.mem.write(top, data)
     _log.write(string.format("new_stack = %016x", top))
     return top
@@ -460,7 +441,7 @@ M.load = function(bytes, opts)
   elf_table = elf_table:append(arch_bytes(AUXV.AT_HWCAP))
   elf_table = elf_table:append(arch_bytes(e_hwcap))
   elf_table = elf_table:append(arch_bytes(AUXV.AT_PAGESZ))
-  elf_table = elf_table:append(arch_bytes(PAGESIZE))
+  elf_table = elf_table:append(arch_bytes(M.mem.PAGESIZE))
   elf_table = elf_table:append(arch_bytes(AUXV.AT_CLKTCK))
   elf_table = elf_table:append(arch_bytes(100))
   elf_table = elf_table:append(arch_bytes(AUXV.AT_PHDR))
@@ -496,7 +477,7 @@ M.load = function(bytes, opts)
   elf_table = elf_table:append(arch_bytes(AUXV.AT_NULL))
   elf_table = elf_table:append(arch_bytes(0))
 
-  new_stack = align(new_stack - #elf_table, 0x10)
+  new_stack = M.mem.align(new_stack - #elf_table, 0x10)
   _log.write(string.format("new_stack = %016x", new_stack))
   _log.write(string.format("elf_table size = %04x", #elf_table))
 
