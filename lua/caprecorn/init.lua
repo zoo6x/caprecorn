@@ -12,9 +12,8 @@ setmetatable(M.arch, { __call = function(_, _arch)
   M._arch = _arch
 end})
 
--- Memory and register access interfaces
--- Set up by the engine
-M.mem = {}
+M.mem = require("mem")
+
 M.reg = {}
 M.emu = {}
 
@@ -160,63 +159,6 @@ setmetatable(M.engine, { __call = function (_, engine)
 
     M.stop = function()
       M._engine:emu_stop()
-    end
-
-    M.mem.map_safe = function(from, size)
-      _log.write(string.format("MEMORY MAP address = %016x - %016x size = %x", from, from + size, size))
-      return M._engine:mem_map(from, size)
-    end
-
-    M.mem.map = function(from, size)
-      _log.write(string.format("MEMORY MAP address = %016x - %016x size = %x", from, from + size, size))
-      local status, err = M._engine:mem_map(from, size)
-
-      if not status then
-        error(string.format("Error [%s] when trying to map %d bytes at address %016x", err, size, from))
-      end
-    end
-
-    M.mem.unmap = function(from, size)
-      local status, err = M._engine:mem_unmap(from, size)
-
-      if not status then
-        error(string.format("Error [%s] when trying to unmap %d bytes at address %016x", err, size, from))
-      end
-    end
-
-    M.mem.read_safe = function(from, size)
-      if from == nil or size == nil then
-        return false, string.format("Invalid parameters for mem_read from=[%s] size=[%s]", tostring(from), tostring(size))
-      end
-
-      local status, bytes_or_message = M._engine:mem_read(from, size)
-
-      if not status then
-        bytes_or_message = string.format("Error [%s] when trying to read %d bytes from address 0x%x", bytes_or_message, size, from)
-      end
-
-      return status, bytes_or_message
-    end
-
-    M.mem.read = function(from, size)
-      if from == nil or size == nil then
-        error(string.format("Invalid parameters for mem_read from=[%s] size=[%s]", tostring(from), tostring(size)))
-      end
-
-      local status, bytes_or_message = M._engine:mem_read(from, size)
-
-      if not status then
-        error(string.format("Error [%s] when trying to read %d bytes from address 0x%x", bytes_or_message, size, from))
-      end
-
-      return bytes_or_message
-    end
-
-    M.mem.write = function(from, bytes)
-      local status, err = M._engine:mem_write(from, bytes)
-      if not status then
-        error(string.format("Memory write error=[%s]", err))
-      end
     end
 
     -- Registers

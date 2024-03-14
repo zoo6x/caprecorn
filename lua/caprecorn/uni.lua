@@ -619,8 +619,10 @@ local function syscall_callback(engine)
   end
   local param_fmt = string.rep("%016x ", params)
 
-  _log.write(string.format("SYSCALL %3d at %016x %-10s " .. param_fmt,
-    rax, rip, name, rdi, rsi, rdx, r10, r8, r9))
+  if handler == nuil then
+    _log.write(string.format("UNHANDLED SYSCALL %3d at %016x %-10s " .. param_fmt,
+      rax, rip, name, rdi, rsi, rdx, r10, r8, r9))
+  end
 
   local stop_emulation = false
   if handler ~= nil then
@@ -628,7 +630,6 @@ local function syscall_callback(engine)
     res, stop_emulation, extra_param = handler(rdi, rsi, rdx, r10, r8, r9)
     if not stop_emulation then
       engine:reg_write(x86_const.UC_X86_REG_RAX, res)
-      _log.write(string.format("SYSCALL res =  %016x", res))
     end
   else
     stop_emulation = true
@@ -674,6 +675,7 @@ M.open = function(_arch, reg, emu, mem)
   engine:ctl_exits_enable()
 
   M.engine = engine
+  mem.setup(engine)
 
   sys.mem = mem
   sys.emu = emu
