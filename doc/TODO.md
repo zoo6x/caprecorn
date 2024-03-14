@@ -72,6 +72,7 @@
 
 https://github.com/ampotos/dynStruct
 DynamoRIO
+https://github.com/plasma-disassembler/plasma/blob/master/plasma/lib/generate_ast.py
 
 Also OllyDbg, x86dbg 
 
