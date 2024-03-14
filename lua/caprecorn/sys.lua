@@ -65,18 +65,6 @@ local ARCH_GET_GS	=	0x1004
 
 -- Helper functions
 
-local function align(addr, size)
-  return addr - addr % size
-end
-
-local function align_up(addr, size)
-  if addr % size == 0 then
-    return addr
-  else
-    return align(addr + size, size)
-  end
-end
-
 local function mem_read_cstring(addr)
   local res = ""
   while true do
@@ -110,19 +98,22 @@ M.fds = {
 -- Syscall handlers
 
 local function sys_read(fd, p_buf, count)
+  _log.writen(string.format("read(%d, 0x%016x, %d) = ", fd, p_buf, count))
+
   local fd_info
 
   fd_info = M.fds[fd]
   if fd_info == nil then
+  _log.write(-EINVAL)
     return -EINVAL
   end
 
-  _log.write(string.format("Reading %d bytes from file name=[%s]", count, fd_info.name))
+  --_log.write(string.format("Reading %d bytes from file name=[%s]", count, fd_info.name))
   local status, bytes = pcall(fd_info.file.read, fd_info.file, count)
   if status == false then
-    _log.write(string.format("Read error [%s]", tostring(bytes)))
+    --_log.write(string.format("Read error [%s]", tostring(bytes)))
   end
-  _log.write(string.format("Read %d bytes", #bytes))
+  --_log.write(string.format("Read %d bytes", #bytes))
   log_dump(p_buf, bytes)
 
   local status, error = M.mem.write(p_buf, bytes)
@@ -131,6 +122,7 @@ local function sys_read(fd, p_buf, count)
     return nil, true
   end
 
+  _log.write(#bytes)
   return #bytes
 end
 
@@ -177,26 +169,34 @@ local function sys_write(fd, p_buf, count)
 end
 
 local function sys_close(fd)
+  _log.writen(string.format("close(%d) = ", fd))
   local fd_info
 
   fd_info = M.fds[fd]
   if fd_info == nil then
+    _log.write(-EINVAL)
     return -EINVAL
   end
 
-  _log.write(string.format("Closing file name=[%s]", fd_info.name))
+  -- _log.write(string.format("Closing file name=[%s]", fd_info.name))
   local status, message = pcall(fd_info.file.close, fd_info.file)
   if status == false then
     _log.write(string.format("Close error [%s]", tostring(message)))
 
+    _log.write(-EFAULT)
     return -EFAULT
   end
 
   M.fds[fd] = nil
+  if M.fds.last_fd == fd then
+    M.fds.last_fd = M.fds.last_fd - 1
+  end
 
+  _log.write(0)
   return 0
 end
 
+-- See here https://github.com/luapower/fs/blob/master/fs_posix.lua
 local function sys_stat(p_filename,	p_statbuf)
   local filename = mem_read_cstring(p_filename)
   _log.write(string.format("stat filename=[%s] statbuf=%016x", filename, p_statbuf))
@@ -204,10 +204,12 @@ local function sys_stat(p_filename,	p_statbuf)
 end
 
 local function sys_fstat(fd, p_statbuf)
+  _log.writen(string.format("fstat(%d, %016x) = ", fd, p_statbuf))
   local fd_info
 
   fd_info = M.fds[fd]
   if fd_info == nil then
+    _log.write(-EINVAL)
     return -EINVAL
   end
 
@@ -215,7 +217,7 @@ local function sys_fstat(fd, p_statbuf)
   local size = fd_info.file:seek("end")
   fd_info.file:seek("set", current)
 
-  _log.write(string.format("fstat filename=[%s] statbuf=%016x file size=%d", fd_info.name, p_statbuf, size))
+  -- _log.write(string.format("fstat filename=[%s] statbuf=%016x file size=%d", fd_info.name, p_statbuf, size))
 
   -- struct stat size is 144 bytes
   -- st_size is at offset 48, a 64-bit integer 
@@ -229,6 +231,10 @@ local function sys_fstat(fd, p_statbuf)
     bytes = "\000\001\002\003\004\005\006\007\008\009\010\011\012\013\014\015\016\017\018\019\020\021\022\023\024\025\026\027\028\029\030\031\032\033\034\035\036\037\038\039\040\041\042\043\044\045\046\047\048\049\050\051\052\053\054\055\056\057\058\059\060\061\062\063\064\065\066\067\068\069\070\071\072\073\074\075\076\077\078\079\080\081\082\083\084\085\086\087\088\089\090\091\092\093\094\095\096\097\098\099\100\101\102\103\104\105\106\107\108\109\110\111\112\113\114\115\116\117\118\119\120\121\122\123\124\125\126\127\128\129\130\131\132\133\134\135\136\137\138\139\140\141\142\143"
   end
 
+  if fd_info.name == "/etc/ld.so.cache" then
+    bytes = "\002\008\000\000\000\000\000\000\096\001\120\000\000\000\000\000\001\000\000\000\000\000\000\000\164\129\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\207\068\002\000\000\000\000\000\000\016\000\000\000\000\000\000\040\001\000\000\000\000\000\000\101\038\243\101\000\000\000\000\029\034\093\023\000\000\000\000\212\182\241\101\000\000\000\000\050\059\216\034\000\000\000\000\235\204\241\101\000\000\000\000\052\116\116\032\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+  end
+
   log_dump(p_statbuf, bytes)
 
   local status, error = M.mem.write(p_statbuf, bytes)
@@ -237,6 +243,7 @@ local function sys_fstat(fd, p_statbuf)
     return nil, true
   end
 
+  _log.write(0)
   return 0
 end
 
@@ -246,7 +253,7 @@ local function sys_brk(brk)
   end
 
   local cur_brk_addr = M.emu.brk_address
-  local new_brk_addr = align_up(brk, PAGESIZE)
+  local new_brk_addr = M.mem.align_up(brk, M.mem.PAGESIZE)
 
   if new_brk_addr > cur_brk_addr then
     M.mem.map(cur_brk_addr, new_brk_addr - cur_brk_addr)
@@ -260,30 +267,34 @@ local function sys_brk(brk)
 end
 
 local function sys_pread64(fd, p_buf, count, pos)
+  _log.writen(string.format("pread64(%d, 0x%016x, %d, %d) = ", fd, p_buf, count, pos))
+
   local fd_info
 
   fd_info = M.fds[fd]
   if fd_info == nil then
+    _log.write(-EINVAL)
     return -EINVAL
   end
 
-  _log.write(string.format("Reading %d bytes at position %d from file name=[%s]", count, pos, fd_info.name))
-  
+  --_log.write(string.format("Reading %d bytes at position %d from file name=[%s]", count, pos, fd_info.name))
+
   local status, bytes
 
   status, _ = pcall(fd_info.file.seek, fd_info.file, "set", pos)
   if status == false then
-    _log.write(string.format("Seek error [%s]", tostring(pos)))
+    -- _log.write(string.format("Seek error [%s]", tostring(pos)))
+    _log.write(-EFAULT)
     return -EFAULT
   end
   local current = fd_info.file:seek()
-  _log.write(string.format("Current pos = %d", current))
+  --_log.write(string.format("Current pos = %d", current))
 
   status, bytes = pcall(fd_info.file.read, fd_info.file, count)
   if status == false then
     _log.write(string.format("Read error [%s]", tostring(bytes)))
   end
-  _log.write(string.format("Read %d bytes", #bytes))
+  --_log.write(string.format("Read %d bytes", #bytes))
   log_dump(p_buf, bytes)
 
   local status, error = M.mem.write(p_buf, bytes)
@@ -292,41 +303,54 @@ local function sys_pread64(fd, p_buf, count, pos)
     return nil, true
   end
 
+  _log.write(#bytes)
   return #bytes
 end
 
 local function sys_mmap(addr, len, prot, flags, fd, off)
+  _log.writen(string.format("mmap(0x%016x, %d, %d, %d, %d, 0x%x) = ", addr, len, prot, flags, fd, off))
+
+  local res = addr
+
   if fd ~= 0xffffffff then
     if M.fds[fd] == nil then
-      _log.write(string.format("mmap failed due to unknown fd=%d", fd))
+      -- _log.write(string.format("mmap failed due to unknown fd=%d", fd))
+      _log.write(-EINVAL)
       return -EINVAL
     end
   end
 
   if addr == 0 then
-    addr = align(M.mmap_addr - len, PAGESIZE)
+    addr = M.mem.align(M.mmap_addr - len, PAGESIZE)
   end
 
   --TODO: flags, prot...
-  local size = align_up(len, PAGESIZE)
-  _log.write(string.format("Mapping %x bytes at address %016x", size, addr))
+  local size = M.mem.align_up(len, PAGESIZE)
+  -- _log.write(string.format("Mapping %x bytes at address %016x", size, addr))
   local status, error = M.mem.map_safe(addr, size)
   if status == false then
-    _log.write(string.format("mmap failed, error=[%s]", error))
+    --_log.write(string.format("mmap failed, error=[%s]", error))
+    _log.write(-EFAULT)
     return -EFAULT
   end
 
   M.mmap_addr = addr
 
   if fd ~= 0xffffffff then
+    _log.off()
     sys_pread64(fd, addr, len, off)
+    _log.on()
     --TODO: W/a error, or incomplete data? Ignore for now
   end
 
+  _log.write(string.format("%016x", addr))
   return addr
 end
 
 local function sys_mprotect(start, len, prot)
+  _log.writen(string.format("mprotect(0x%016x, %d, %d) = ", start, len, prot))
+
+  _log.write(0)
   return 0
 end
 
@@ -351,9 +375,13 @@ local function sys_writev(fd, p_iov, count)
 
     _log.write(string.format("Writing iov %2d addr=%016x size=%x", i + 1, addr, size))
 
+    local cur_log_dump = M.log_dump
+    M.log_dump = true
     res = sys_write(fd, addr, size)
+    M.log_dump = cur_log_dump 
+
     if res < 0 then
-      return res
+      break
     end
   end
 
@@ -369,6 +397,8 @@ local function sys_exit(exit_code)
 end
 
 local function sys_uname(p_buf)
+  _log.writen(string.format("uname(0x%016x) = ", p_buf))
+
   local UTSLEN = 65
 
   local fields = {
@@ -392,10 +422,11 @@ local function sys_uname(p_buf)
 
   for i, s in ipairs(fields) do
     local field = string.rpadtrunc(s, UTSLEN, '\000')
-    _log.write(string.format("uname field [%s]", field))
+    --_log.write(string.format("uname field [%s]", field))
     M.mem.write(p_buf + (i - 1) * UTSLEN, field)
   end
 
+  _log.write(0)
   return 0
 end
 
@@ -415,7 +446,7 @@ end
 
 local function sys_openat(dir_fd, p_filename, flags, mode)
   local filename = mem_read_cstring(p_filename)
-  _log.write(string.format("openat dir_fd=%d filename=[%s] flags=%x mode=%x", dir_fd, filename, flags, mode))
+  _log.writen(string.format('openat(%d, "%s", %d, %d) = ', dir_fd, filename, flags, mode))
 
   if dir_fd ~= AT_FDCWD then
     return -EINVAL
@@ -431,12 +462,14 @@ local function sys_openat(dir_fd, p_filename, flags, mode)
   end
 
   local fd = M.fds.last_fd + 1
+  M.fds.last_fd = fd
   local fd_info = {
     name = filename,
     file = file,
   }
   M.fds[fd] = fd_info
 
+  _log.write(fd)
   return fd
 end
 
