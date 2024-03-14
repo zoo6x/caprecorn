@@ -6,10 +6,28 @@ local filename = "./caprecorn.log"
 local file = io.open(filename, "w+")
 file:close()
 
-M.write = function(line)
+local enabled = true
+
+M.off = function ()
+  enabled = false
+end
+
+M.on = function ()
+  enabled = true
+end
+
+M.writen = function(line)
+  if not enabled then
+    return
+  end
   file = io.open(filename, "a+")
-  file:write(line, "\n")
+  file:write(line)
   file:close()
+end
+
+M.write = function(line)
+  M.writen(line)
+  M.writen("\n")
 end
 
 return M
