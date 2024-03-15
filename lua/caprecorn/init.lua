@@ -106,8 +106,7 @@ setmetatable(M.engine, { __call = function (_, engine)
       local res, status = M._engine:emu_start(M.reg.pc(), -1, 0, 1)
       M._engine:ctl_exits_enable()
       if not res then
-        print(string.format("Error at PC=%016x", M.reg.pc()))
-        error(status)
+        print("[", status, "]", string.format("Error at PC=%016x", M.reg.pc()))
       else
         print(string.format("Step succeeded, previous PC=%016x, current PC=%016x", last_pc, M.reg.pc()))
       end
@@ -139,14 +138,16 @@ setmetatable(M.engine, { __call = function (_, engine)
             M.emu.stop_pc = nil
           end
           return
+
         end
+        C.emu.set_breakpoints({ 0x00007ffff7ff7aca })
 
         local res, status = M.start(M.reg.pc(), -1, 0, 100)
         if not res then
           idle:stop()
           M._stopped = true
           print(string.format("Error at PC=%016x", M.reg.pc()))
-          -- error(status)
+          print(status)
         end
         --TODO: Need to detect stopping on a set_breakpoints
         --TODO: Re-set breakpoints after one has been hit. ctl_get_exits()
