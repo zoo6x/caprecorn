@@ -18,6 +18,18 @@ MEMORY MAP address = 00007fffb7be1000 - 00007fffb7d59000 size = 178000
 
 ]]
 
+
+-- Catch all writes to this area? Certain address?
+-- Map 0x2000 at   0x00007fffb7dc7000 
+-- Damaged name at 0x00007fffb7dc70c0
+-- How to debug it? 
+-- Stop after syscall with certain parameters, w/o stepping back?
+-- I.e., stop after a successful syscall execution
+-- Or:
+--  - Turn off ASRL
+--  - Make sure Linux, Qiling and we mmap at the same addresses
+--  - Integrate with Qiling and compare memory and registers
+
 C = require('caprecorn')
 
 local _log = require('_log')
@@ -65,6 +77,10 @@ dump.focus()
 local reg = dump.split()
 dis.buf(dis_buf)
 reg.buf(reg_buf)
+
+local log_tab = C.win.tab()
+vim.cmd[[e ./caprecorn.log]]
+
 C.win.end_layout()
 
 dis_buf.on_change = function()
@@ -80,105 +96,17 @@ program = '/home/john/src/junk/stat'
 -- program = '/bin/ls'
 
 local env = {
-  [[BASH=/usr/bin/bash]],
-  [[BASHOPTS=checkwinsize:cmdhist:complete_fullquote:expand_aliases:extglob:extquote:force_fignore:globasciiranges:histappend:interactive_comments:progcomp:promptvars:sourcepath]],
-  "BASH_ALIASES=()",
-  [[BASH_ARGC=([0]="0")]],
-  [[BASH_ARGV=()]],
-  [[BASH_CMDS=()]],
-  [[BASH_COMPLETION_VERSINFO=([0]="2" [1]="10")]],
-  [[BASH_LINENO=()]],
-  [[BASH_REMATCH=()]],
-  [[BASH_SOURCE=()]],
-  [[BASH_VERSINFO=([0]="5" [1]="0" [2]="17" [3]="1" [4]="release" [5]="x86_64-pc-linux-gnu")]],
-  [[BASH_VERSION='5.0.17(1)-release']],
-  [[COLORTERM=truecolor]],
-  [[COLUMNS=305]],
-  [[COMP_WORDBREAKS=$' \t\n"\'><=;|&(:']],
-  [[DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1001/bus]],
-  [[DESKTOP_SESSION=ubuntu]],
-  [[DIRSTACK=()]],
-  [[DISPLAY=:0]],
-  [[EUID=1001]],
-  [[GDMSESSION=ubuntu]],
-  [[GJS_DEBUG_OUTPUT=stderr]],
-  [[GJS_DEBUG_TOPICS='JS ERROR;JS LOG']],
-  [[GNOME_DESKTOP_SESSION_ID=this-is-deprecated]],
-  [[GNOME_SHELL_SESSION_MODE=ubuntu]],
-  [[GNOME_TERMINAL_SCREEN=/org/gnome/Terminal/screen/8772aea9_2152_4fb4_92a8_3c63ddd1ad5c]],
-  [[GNOME_TERMINAL_SERVICE=:1.169]],
-  [[GPG_AGENT_INFO=/run/user/1001/gnupg/S.gpg-agent:0:1]],
-  [[GREP_COLORS='ms=01;32:mc=01;31:sl=:cx=:fn=35:ln=32:bn=32:se=36']],
-  [[GROUPS=()]],
-  [[GTK_MODULES=gail:atk-bridge]],
-  [[HISTCONTROL=ignoreboth]],
-  [[HISTFILE=/home/john/.bash_history]],
-  [[HISTFILESIZE=2000]],
-  [[HISTSIZE=1000]],
-  [[HOME=/home/john]],
-  [[HOSTNAME=GroundStation-15]],
-  [[HOSTTYPE=x86_64]],
-  [[IFS=$' \t\n']],
-  [[IM_CONFIG_PHASE=1]],
-  [[INVOCATION_ID=ceff31113362465fb5f665f9c37cd8a7]],
-  [[JOURNAL_STREAM=8:45648]],
-  [[LANG=en_US.UTF-8]],
-  [[LC_ADDRESS=uk_UA.UTF-8]],
-  [[LC_IDENTIFICATION=uk_UA.UTF-8]],
-  [[LC_MEASUREMENT=uk_UA.UTF-8]],
-  [[LC_MONETARY=uk_UA.UTF-8]],
-  [[LC_NAME=uk_UA.UTF-8]],
-  [[LC_NUMERIC=uk_UA.UTF-8]],
-  [[LC_PAPER=uk_UA.UTF-8]],
-  [[LC_TELEPHONE=uk_UA.UTF-8]],
-  [[LC_TIME=uk_UA.UTF-8]],
-  [[LESSCLOSE='/usr/bin/lesspipe %s %s']],
-  [[LESSOPEN='| /usr/bin/lesspipe %s']],
-  [[LINES=80]],
-  [[LOGNAME=john]],
-  [[MACHTYPE=x86_64-pc-linux-gnu]],
-  [[MAILCHECK=60]],
-  [[MANAGERPID=1390]],
-  [[OLDPWD=/home/john]],
-  [[OPTERR=1]],
-  [[OPTIND=1]],
-  [[OSTYPE=linux-gnu]],
-  [[PATH=/home/john/.local/bin:/home/john/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin]],
-  [[PIPESTATUS=([0]="0")]],
-  [[PPID=9914]],
-  [[PS1='\[\e]0;\u@\h: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ ']],
-  [[PS2='> ']],
-  [[PS4='+ ']],
-  [[PWD=/home/john/src/junk]],
-  [[QT_ACCESSIBILITY=1]],
-  [[QT_IM_MODULE=ibus]],
-  [[SESSION_MANAGER=local/GroundStation-15:@/tmp/.ICE-unix/1526,unix/GroundStation-15:/tmp/.ICE-unix/1526]],
-  [[SHELL=/bin/bash]],
-  [[SHELLOPTS=braceexpand:emacs:hashall:histexpand:history:interactive-comments:monitor]],
-  [[SHLVL=1]],
-  [[SSH_AGENT_PID=1488]],
-  [[SSH_AUTH_SOCK=/run/user/1001/keyring/ssh]],
-  [[TERM=xterm-256color]],
-  [[UID=1001]],
-  [[USER=john]],
-  [[USERNAME=john]],
-  [[VTE_VERSION=6003]],
-  [[WINDOWPATH=2]],
-  [[XAUTHORITY=/run/user/1001/gdm/Xauthority]],
-  [[XDG_CONFIG_DIRS=/etc/xdg/xdg-ubuntu:/etc/xdg]],
-  [[XDG_CURRENT_DESKTOP=ubuntu:GNOME]],
-  [[XDG_DATA_DIRS=/usr/share/ubuntu:/usr/local/share/:/usr/share/:/var/lib/snapd/desktop]],
-  [[XDG_MENU_PREFIX=gnome-]],
-  [[XDG_RUNTIME_DIR=/run/user/1001]],
-  [[XDG_SESSION_CLASS=user]],
-  [[XDG_SESSION_DESKTOP=ubuntu]],
-  [[XDG_SESSION_TYPE=x11]],
-  [[XMODIFIERS=@im=ibus]],
+  [[LD_DEBUG=all]]
 }
 
-local elf = C.elf.loadfile(program, { argv = { program }, env = env })
+local elf = C.elf.loadfile(program, 
+  { 
+    argv = { program }, 
+    env = env,
+    rootfs = "/home/john/src/qiling-dev/examples/rootfs/x8664_linux_latest",
+  })
 
--- C.emu.set_breakpoints({ 0x00007ffff7df3d37, 0x00007ffff7df3d39 })
+C.emu.set_breakpoints({ 0x00007ffff7ff7aa4 })
 
 local code = C.mem.read(elf.mem_start, 0x4000)
 
