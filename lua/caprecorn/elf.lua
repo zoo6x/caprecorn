@@ -39,13 +39,13 @@ local _addresses = {
   [M.arch.X86_64] = {
     pointer_size = 8,
 
-    stack_address = 0x7ffffffde000,
+    stack_address = 0x7ffffffd0000,
     -- stack_size = 0x21000,
     stack_size = 0x30000,
     load_address = 0x555555554000,
     -- interp_address = 0x7ffff7fcf000,
-    interp_address = 0x00007ffff7fcf000, -- 0x7ffff7dd5000,
-    mmap_address   = 0x00007ffff7fc9000, -- 0x7fffb7dd6000,
+    interp_address = 0x7ffff7dd5000, -- 0x00007ffff7fcf000, -- ,
+    mmap_address   = 0x7fffb7dd6000, -- 0x00007ffff7fc9000, -- ,
     vsyscall_address = 0xffffffffff600000,
 
     gdt_addr = 0x30000,
@@ -172,6 +172,7 @@ M.load = function(bytes, opts)
   local res = {}
 
   opts = opts or {}
+  local rootfs = opts.rootfs or "/"
 
   local elf = bytes
   local addresses = _addresses[M.emu.arch]
@@ -360,7 +361,14 @@ M.load = function(bytes, opts)
 
     --TODO: If interpreter is not position-independent, it has to be loaded at some fixed address
     -- But this should only be the case with old interpreters, so ignore it for now
-    local interp_elf = M.loadfile(interp_name, { map_stack = false, load_addr = addresses.interp_address, })
+    interp_name = rootfs .. interp_name
+
+    local interp_elf = M.loadfile(interp_name, 
+      { 
+        map_stack = false, 
+        load_addr = addresses.interp_address, 
+        rootfs = opts.rootfs,
+      })
     local interp_entry = interp_elf.entry
     res.interp_entry = interp_entry
   end
@@ -376,12 +384,13 @@ M.load = function(bytes, opts)
   -- Assign mmap_address for mmap syscall address to use
   -- TODO: Ugly, but temporary
   sys.mmap_addr = addresses.mmap_address
+  sys.rootfs = rootfs
 
   local function push_str(top, s)
     local data = s .. '\000'
     top = M.mem.align(top - #data, addresses.pointer_size)
     M.mem.write(top, data)
-    _log.write(string.format("new_stack = %016x", top))
+    --_log.write(string.format("new_stack = %016x", top))
     return top
   end
 
