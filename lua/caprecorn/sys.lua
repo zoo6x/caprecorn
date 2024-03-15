@@ -3,6 +3,9 @@ local M = {}
 
 -- https://stackoverflow.com/questions/38751614/what-are-the-return-values-of-system-calls-in-assembly
 
+-- sys_rseq
+-- https://www.efficios.com/blog/2019/02/08/linux-restartable-sequences/
+
 M.mmap_addr = nil
 
 local _log = require("_log")
@@ -154,13 +157,14 @@ local function sys_write(fd, p_buf, count)
     file = fd_info.file
   end
 
-  _log.write(string.format("Writing %d bytes to file name=[%s]", count, filename))
-  log_dump(p_buf, bytes)
+  --_log.write(string.format("Writing %d bytes to file name=[%s]", count, filename))
+  --log_dump(p_buf, bytes)
 
   if fd == 1 or fd == 2 then
     -- This damages Nvim UI
     -- TODO: write to output log (repl style). Also need input from repl
     --file:write(bytes)
+    _log.writen(bytes)
   else
     _log.write(string.format("Ignoring write attempt to file name [%s] until whitelisted", filename))
   end
@@ -227,8 +231,8 @@ local function sys_fstat(fd, p_statbuf)
   bytes = bytes:append(string.from(math.floor(size / 512), 8)) -- st_blocks
   bytes = bytes:rpadtrunc(144, '\000')
 
-  if fd_info.name == "/lib/x86_64-linux-gnu/libc.so.6" then
-    bytes = "\000\001\002\003\004\005\006\007\008\009\010\011\012\013\014\015\016\017\018\019\020\021\022\023\024\025\026\027\028\029\030\031\032\033\034\035\036\037\038\039\040\041\042\043\044\045\046\047\048\049\050\051\052\053\054\055\056\057\058\059\060\061\062\063\064\065\066\067\068\069\070\071\072\073\074\075\076\077\078\079\080\081\082\083\084\085\086\087\088\089\090\091\092\093\094\095\096\097\098\099\100\101\102\103\104\105\106\107\108\109\110\111\112\113\114\115\116\117\118\119\120\121\122\123\124\125\126\127\128\129\130\131\132\133\134\135\136\137\138\139\140\141\142\143"
+  if fd_info.name == "/usr/local/lib/libc.so.6" then
+    bytes = "\002\008\000\000\000\000\000\000\123\149\080\000\000\000\000\000\001\000\000\000\000\000\000\000\253\129\000\000\232\003\000\000\232\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\136\087\175\000\000\000\000\000\000\016\000\000\000\000\000\000\176\087\000\000\000\000\000\000\046\002\244\101\000\000\000\000\195\061\200\021\000\000\000\000\140\000\244\101\000\000\000\000\158\252\215\013\000\000\000\000\043\002\244\101\000\000\000\000\020\057\091\025\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"    
   end
 
   if fd_info.name == "/etc/ld.so.cache" then
@@ -308,7 +312,7 @@ local function sys_pread64(fd, p_buf, count, pos)
 end
 
 local function sys_mmap(addr, len, prot, flags, fd, off)
-  _log.writen(string.format("mmap(0x%016x, %d, %d, %d, %d, 0x%x) = ", addr, len, prot, flags, fd, off))
+  _log.writen(string.format("mmap(0x%016x, %x, %d, %d, %d, 0x%x) = ", addr, len, prot, flags, fd, off))
 
   local res = addr
 
@@ -360,8 +364,8 @@ end
 
 local function sys_writev(fd, p_iov, count)
   local res = 0
-  -- struct iov size=16
-   _log.write(string.format("Reading iov addr=%016x count=%d", p_iov, count))
+   -- struct iov size=16
+   --_log.write(string.format("Reading iov addr=%016x count=%d", p_iov, count))
   local status, vectors = M.mem.read_safe(p_iov, count * 16)
 
   if status == false then
@@ -373,7 +377,7 @@ local function sys_writev(fd, p_iov, count)
     local addr = vectors:i64(i * 16 + 0)
     local size = vectors:i64(i * 16 + 8)
 
-    _log.write(string.format("Writing iov %2d addr=%016x size=%x", i + 1, addr, size))
+    --_log.write(string.format("Writing iov %2d addr=%016x size=%x", i + 1, addr, size))
 
     local cur_log_dump = M.log_dump
     M.log_dump = true
@@ -389,7 +393,18 @@ local function sys_writev(fd, p_iov, count)
 end
 
 local function sys_access(p_filename, mode)
+  local filename = mem_read_cstring(p_filename)
+  _log.writen(string.format('access("%s", %x) = ', filename, mode))
+
+  _log.write(-ENOENT)
   return -ENOENT
+end
+
+local function sys_getpid()
+  --_log.writen(string.format("getpid() = "))
+
+  --_log.write(100000)
+  return 100000
 end
 
 local function sys_exit(exit_code)
@@ -431,17 +446,26 @@ local function sys_uname(p_buf)
 end
 
 local function sys_arch_prctl(code, addr)
+  _log.writen(string.format("arch_prctl(0x%x, 0x%016x) = ", code, addr))
 
   if code == ARCH_SET_FS then
-    _log.write(string.format("arch_prctl ARCH_SET_FS addr=%016x", addr))
 
     local msr_value = string.from({ 0xc0000100, addr}, 8)
     M.reg.write_buf(M.reg.x86.msr, msr_value)
 
+    _log.write(0)
     return 0
   end
 
+  _log.write(-EINVAL)
   return -EINVAL
+end
+
+local function sys_set_tid_address(p_tid)
+  _log.writen(string.format("set_tid_address(0x%016x) = ", p_tid))
+
+  _log.write(100000)
+  return nil, true -- 100000
 end
 
 local function sys_openat(dir_fd, p_filename, flags, mode)
@@ -449,15 +473,20 @@ local function sys_openat(dir_fd, p_filename, flags, mode)
   _log.writen(string.format('openat(%d, "%s", %d, %d) = ', dir_fd, filename, flags, mode))
 
   if dir_fd ~= AT_FDCWD then
+    _log.write(-EINVAL)
     return -EINVAL
   end
 
-  --if filename == "/etc/ld.so.cache" then
+  -- if filename == "/etc/ld.so.cache" then
+  --  _log.write(-ENOENT)
   --  return -ENOENT
-  --end
+  -- end
 
-  local file = io.open(filename, "r")
+  filefullname = M.rootfs .. filename
+
+  local file = io.open(filefullname, "r")
   if file == nil then
+    _log.write(-ENOENT)
     return -ENOENT
   end
 
@@ -471,6 +500,20 @@ local function sys_openat(dir_fd, p_filename, flags, mode)
 
   _log.write(fd)
   return fd
+end
+
+local function sys_set_robust_list(p_robust_list_head, len)
+  _log.writen(string.format("set_robust_list(0x%016x, %d) = ", p_robust_list_head, len))
+
+  _log.write(0)
+  return 0
+end
+
+local function sys_rseq(p_robust_list_head, len, flags, sig)
+  _log.writen(string.format("rseq(0x%016x, %d, %x, %08x) = ", p_robust_list_head, len, flags, sig))
+
+  _log.write(0)
+  return 0
 end
 
 M.syscall = {
@@ -487,11 +530,15 @@ M.syscall = {
     [17]  = { handler = sys_pread64, name = "pread64", params = 4, },
     [20]  = { handler = sys_writev, name = "writev", params = 3, },
     [21]  = { handler = sys_access, name = "access", params = 2, },
+    [39]  = { handler = sys_getpid, name = "getpid", params = 0, },
     [60]  = { handler = sys_exit, name = "exit", params = 1, },
     [63]  = { handler = sys_uname, name = "uname", params = 1, },
     [158] = { handler = sys_arch_prctl, name = "arch_prctl", params = 2, },
+    [218] = { handler = sys_set_tid_address, name = "set_tid_address", params = 1, },
     [231] = { handler = sys_exit, name = "exit_group", params = 1, },
     [257] = { handler = sys_openat, name = "openat", params = 4, },
+    [273] = { handler = sys_set_robust_list, name = "set_robust_list", params = 2, },
+    [334] = { handler = sys_rseq, name = "rseq", params = 4, },
   }
 }
 
