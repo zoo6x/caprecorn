@@ -140,7 +140,6 @@ setmetatable(M.engine, { __call = function (_, engine)
           return
 
         end
-        C.emu.set_breakpoints({ 0x00007ffff7ff7aca })
 
         local res, status = M.start(M.reg.pc(), -1, 0, 100)
         if not res then
