@@ -384,6 +384,7 @@ M.load = function(bytes, opts)
   -- Assign mmap_address for mmap syscall address to use
   -- TODO: Ugly, but temporary
   sys.mmap_addr = addresses.mmap_address
+  _log.write(string.format("mmap_address is 0x%016x", sys.mmap_addr))
   sys.rootfs = rootfs
 
   local function push_str(top, s)
