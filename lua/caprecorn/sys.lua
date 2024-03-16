@@ -6,7 +6,9 @@ local M = {}
 -- sys_rseq
 -- https://www.efficios.com/blog/2019/02/08/linux-restartable-sequences/
 
+-- Set by the ELF loader
 M.mmap_addr = nil
+M.stack_size = nil
 
 local _log = require("_log")
 
@@ -21,6 +23,7 @@ local hex = require("hex")
 -- Set by Unicorn on open()
 M.mem = nil
 M.reg = nil
+M.emu = nil
 
 local EPERM =           1
 local ENOENT =          2
@@ -65,6 +68,8 @@ local ARCH_SET_GS	= 0x1001
 local ARCH_SET_FS	=	0x1002
 local ARCH_GET_FS	=	0x1003
 local ARCH_GET_GS	=	0x1004
+
+local RLIMIT_STACK = 3
 
 -- Helper functions
 
@@ -252,11 +257,13 @@ local function sys_fstat(fd, p_statbuf)
 end
 
 local function sys_brk(brk)
+  _log.writen(string.format("brk(0x%016x) = ", brk))
   if brk == 0 then
+    _log.write(string.format("0x%016x", M.brk_addr))
     return M.emu.brk_addr
   end
 
-  local cur_brk_addr = M.emu.brk_address
+  local cur_brk_addr = M.brk_addr
   local new_brk_addr = M.mem.align_up(brk, M.mem.PAGESIZE)
 
   if new_brk_addr > cur_brk_addr then
@@ -265,9 +272,10 @@ local function sys_brk(brk)
     M.mem.unmap(new_brk_addr, cur_brk_addr - new_brk_addr)
   end
 
-  M.emu.brk_addr = new_brk_addr
+  M.brk_addr = new_brk_addr
 
-  return M.emu.brk_addr
+  _log.write(string.format("0x%016x", M.emu.brk_addr))
+  return M.brk_addr
 end
 
 local function sys_pread64(fd, p_buf, count, pos)
@@ -469,6 +477,17 @@ local function sys_set_tid_address(p_tid)
   return 100000
 end
 
+local function sys_clock_gettime(which_clock, p_tp)
+  _log.writen(string.format("clock_gettime(%d, 0x%016x) = ", which_clock, p_tp))
+
+  local time = ""
+  time = time:append(string.from(0, 8))
+  time = time:append(string.from(0, 8))
+
+  _log.write(0)
+  return 0
+end
+
 local function sys_openat(dir_fd, p_filename, flags, mode)
   local filename = mem_read_cstring(p_filename)
   _log.writen(string.format('openat(%d, "%s", %d, %d) = ', dir_fd, filename, flags, mode))
@@ -510,6 +529,55 @@ local function sys_set_robust_list(p_robust_list_head, len)
   return 0
 end
 
+local function sys_newfstatat(dfd, p_filename, p_statbuf, flag)
+  _log.writen(string.format("set_newfsstatat(%d, 0x%016x, 0x%016x, %d) = ", dfd, p_filename, p_statbuf, flag))
+
+  _log.write(-EPERM)
+  return -EPERM
+end
+
+local function sys_prlimit64(pid, resource, p_new_rlim, p_old_rlim)
+  _log.writen(string.format("prlimit(%d, %d, 0x%016x, 0x%016x)", pid, resource, p_new_rlim, p_old_rlim))
+  if pid == 0 and p_new_rlim == 0 then
+    if resource == RLIMIT_STACK then
+      local lim = ""
+      lim = lim:append(string.from(M.stack_size), 4)
+      lim = lim:append(string.from(0), 4)
+      lim = lim:append(string.from(0xffffffff), 4)
+      lim = lim:append(string.from(0xffffffff), 4)
+
+      local status, error = M.mem.write(p_old_rlim, lim)
+      if status == false then
+        _log.write(string.format("Memory write error [%s]", error))
+        return nil, true
+      end
+      _log.write(0)
+      return 0
+    end  
+  else
+    _log.write(-1)
+    return -1
+  end  
+end
+
+local function sys_getrandom(p_buf, count, flags)
+  _log.writen(string.format("getrandom(0x%016x, %d, %x) = ", p_buf, count, flags))
+  local rand = ""
+  for i = 1, count do 
+    local b = math.random(0, 255)
+    rand = rand .. string.char(b)
+  end
+
+  local status, error = M.mem.write(p_buf, rand)
+  if status == false then
+    _log.write(string.format("Memory write error [%s]", error))
+    return nil, true
+  end
+
+  _log.write(0)
+  return 0
+end  
+
 local function sys_rseq(p_robust_list_head, len, flags, sig)
   _log.writen(string.format("rseq(0x%016x, %d, %x, %08x) = ", p_robust_list_head, len, flags, sig))
 
@@ -536,9 +604,13 @@ M.syscall = {
     [63]  = { handler = sys_uname, name = "uname", params = 1, },
     [158] = { handler = sys_arch_prctl, name = "arch_prctl", params = 2, },
     [218] = { handler = sys_set_tid_address, name = "set_tid_address", params = 1, },
+    [228] = { handler = sys_clock_gettime, name = "clock_gettime", params = 2, },
     [231] = { handler = sys_exit, name = "exit_group", params = 1, },
     [257] = { handler = sys_openat, name = "openat", params = 4, },
+    [262] = { handler = sys_newfstatat, name = "newfstatat", params = 4, },
     [273] = { handler = sys_set_robust_list, name = "set_robust_list", params = 2, },
+    [302] = { handler = sys_prlimit64, name = "prlimit64", params = 4, },
+    [318] = { handler = sys_getrandom, name = "getrandom", params = 3, },
     [334] = { handler = sys_rseq, name = "rseq", params = 4, },
   }
 }
