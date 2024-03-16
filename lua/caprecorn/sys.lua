@@ -312,7 +312,7 @@ local function sys_pread64(fd, p_buf, count, pos)
 end
 
 local function sys_mmap(addr, len, prot, flags, fd, off)
-  _log.writen(string.format("mmap(0x%016x, %x, %d, %d, %d, 0x%x) = ", addr, len, prot, flags, fd, off))
+  _log.writen(string.format("mmap(0x%016x, 0x%x, 0x%x, 0x%x, %d, 0x%x) = ", addr, len, prot, flags, fd, off))
 
   local res = addr
 
@@ -326,6 +326,8 @@ local function sys_mmap(addr, len, prot, flags, fd, off)
 
   if addr == 0 then
     addr = M.mem.align(M.mmap_addr - len, PAGESIZE)
+
+    M.mmap_addr = addr
   end
 
   --TODO: flags, prot...
@@ -337,8 +339,6 @@ local function sys_mmap(addr, len, prot, flags, fd, off)
     _log.write(-EFAULT)
     return -EFAULT
   end
-
-  M.mmap_addr = addr
 
   if fd ~= 0xffffffff then
     _log.off()
@@ -465,7 +465,8 @@ local function sys_set_tid_address(p_tid)
   _log.writen(string.format("set_tid_address(0x%016x) = ", p_tid))
 
   _log.write(100000)
-  return nil, true -- 100000
+  ---return nil, true -- 100000
+  return 100000
 end
 
 local function sys_openat(dir_fd, p_filename, flags, mode)
