@@ -1,24 +1,5 @@
 --
 
--- Can mapped areas overlap if they have different protections?
---[[
-MEMORY MAP address = 0000000000030000 - 0000000000031000 size = 1000
-MEMORY MAP address = 00007ffffffde000 - 000080000000e000 size = 30000
-MEMORY MAP address = 0000000000400000 - 0000000000401000 size = 1000
-MEMORY MAP address = 0000000000401000 - 0000000000402000 size = 1000
-MEMORY MAP address = 0000000000402000 - 0000000000403000 size = 1000
-MEMORY MAP address = 0000000000403000 - 0000000000405000 size = 2000
-MEMORY MAP address = 00007ffff7dd5000 - 00007ffff7dd6000 size = 1000
-MEMORY MAP address = 00007ffff7dd6000 - 00007ffff7df9000 size = 23000
-MEMORY MAP address = 00007ffff7df9000 - 00007ffff7e01000 size = 8000
-MEMORY MAP address = 00007ffff7e02000 - 00007ffff7e05000 size = 3000
-MEMORY MAP address = 00007fffb7db1000 - 00007fffb7dd6000 size = 25000
-MEMORY MAP address = 00007fffb7bbf000 - 00007fffb7db1000 size = 1f2000
-MEMORY MAP address = 00007fffb7be1000 - 00007fffb7d59000 size = 178000
-
-]]
-
-
 -- Catch all writes to this area? Certain address?
 -- Map 0x2000 at   0x00007fffb7dc7000 
 -- Damaged name at 0x00007fffb7dc70c0
@@ -43,10 +24,6 @@ C.disasm(C.disasm.CAPSTONE)
 
 _log.write("Before open")
 C.open()
-
-C.mem.map(0x50000, 0x10000)
-C.mem.unmap(0x51000, 0x0f000)
-
 
 C.win.begin_layout()
 
