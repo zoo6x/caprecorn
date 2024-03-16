@@ -25,6 +25,7 @@ MEMORY MAP address = 00007fffb7be1000 - 00007fffb7d59000 size = 178000
 -- How to debug it? 
 -- Stop after syscall with certain parameters, w/o stepping back?
 -- I.e., stop after a successful syscall execution
+-- Implement fstat() before this ?
 -- Or:
 --  - Turn off ASRL
 --  - Make sure Linux, Qiling and we mmap at the same addresses
@@ -106,7 +107,7 @@ local elf = C.elf.loadfile(program,
     rootfs = "/home/john/src/qiling-dev/examples/rootfs/x8664_linux_latest",
   })
 
-C.emu.set_breakpoints({ 0x00007ffff7ff7aa4 })
+--C.emu.set_breakpoints({ 0x00007ffff7ff7aa4 })
 
 local code = C.mem.read(elf.mem_start, 0x4000)
 
