@@ -383,7 +383,9 @@ M.load = function(bytes, opts)
 
   -- Assign mmap_address for mmap syscall address to use
   -- TODO: Ugly, but temporary
+  sys.brk_addr = M.emu.brk_addr
   sys.mmap_addr = addresses.mmap_address
+  sys.stack_size = addresses.stack_size
   _log.write(string.format("mmap_address is 0x%016x", sys.mmap_addr))
   sys.rootfs = rootfs
 
