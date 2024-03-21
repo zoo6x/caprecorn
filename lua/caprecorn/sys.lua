@@ -19,6 +19,10 @@ M.log_dump = false
 local arch = require("arch")
 M.arch = arch.arch
 
+-- Symbols
+local ref = require("ref")
+M.sym = ref.sym
+
 local hex = require("hex")
 -- Set by Unicorn on open()
 M.mem = nil
@@ -135,6 +139,7 @@ local function sys_read(fd, p_buf, count)
 end
 
 local function sys_write(fd, p_buf, count)
+  _log.writen(string.format("write(%d, 0x%016x, %d) = ", fd, p_buf, count))
   local status, bytes = M.mem.read_safe(p_buf, count)
 
   if status == false then
@@ -242,6 +247,10 @@ local function sys_fstat(fd, p_statbuf)
 
   if fd_info.name == "/etc/ld.so.cache" then
     bytes = "\002\008\000\000\000\000\000\000\096\001\120\000\000\000\000\000\001\000\000\000\000\000\000\000\164\129\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\207\068\002\000\000\000\000\000\000\016\000\000\000\000\000\000\040\001\000\000\000\000\000\000\101\038\243\101\000\000\000\000\029\034\093\023\000\000\000\000\212\182\241\101\000\000\000\000\050\059\216\034\000\000\000\000\235\204\241\101\000\000\000\000\052\116\116\032\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
+  end
+
+  if fd_info.name == "/usr/local/lib/preload.so" then
+    bytes = "\002\008\000\000\000\000\000\000\061\115\080\000\000\000\000\000\001\000\000\000\000\000\000\000\253\129\000\000\232\003\000\000\232\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\248\062\000\000\000\000\000\000\000\016\000\000\000\000\000\000\032\000\000\000\000\000\000\000\030\047\251\101\000\000\000\000\135\023\113\030\000\000\000\000\024\047\251\101\000\000\000\000\148\247\214\042\000\000\000\000\024\047\251\101\000\000\000\000\148\247\214\042\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000"
   end
 
   log_dump(p_statbuf, bytes)
@@ -537,7 +546,7 @@ local function sys_newfstatat(dfd, p_filename, p_statbuf, flag)
 end
 
 local function sys_prlimit64(pid, resource, p_new_rlim, p_old_rlim)
-  _log.writen(string.format("prlimit(%d, %d, 0x%016x, 0x%016x)", pid, resource, p_new_rlim, p_old_rlim))
+  _log.writen(string.format("prlimit(%d, %d, 0x%016x, 0x%016x) = ", pid, resource, p_new_rlim, p_old_rlim))
   if pid == 0 and p_new_rlim == 0 then
     if resource == RLIMIT_STACK then
       local lim = ""
@@ -585,6 +594,26 @@ local function sys_rseq(p_robust_list_head, len, flags, sig)
   return 0
 end
 
+-- Interface with the emulator via syscall #1357
+local function sys_caprecorn(func, addr, p_name)
+  local FUNC_DEFINE_SYMBOL = 1358
+
+  if func == FUNC_DEFINE_SYMBOL then
+
+    if addr ~= 0 then
+      local symbol_name = mem_read_cstring(p_name)
+
+      _log.write(string.format("SYM 0x%016x = %s", addr, symbol_name))
+      M.sym[addr] = symbol_name
+    end
+
+    return 0
+  end
+
+  _log.write(-EINVAL)
+  return -EINVAL
+end  
+
 M.syscall = {
   [M.arch.X86_64] = {
     [0]   = { handler = sys_read, name = "read", params = 3, },
@@ -612,6 +641,8 @@ M.syscall = {
     [302] = { handler = sys_prlimit64, name = "prlimit64", params = 4, },
     [318] = { handler = sys_getrandom, name = "getrandom", params = 3, },
     [334] = { handler = sys_rseq, name = "rseq", params = 4, },
+
+    [1357] = { handler = sys_caprecorn, name = "caprecorn", params = 3, }
   }
 }
 
