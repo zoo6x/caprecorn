@@ -36,8 +36,13 @@ local REF_JUMP = 2
 
 M.refs = {}
 
+-- References: symbols etc
+local ref = require("ref")
+M.sym = ref.sym
+
 -- Breakpoints
-M.brk = {}
+local brk = require("brk")
+M.brk = brk.brk
 
 -- To avoid disassembling gigabytes or more of code. User can change this, if needed
 M.maxsize = 64 * 1024
@@ -51,7 +56,9 @@ local function create_highlight()
   hi default CrcDisCall guifg=#aa0000
   hi default CrcDisJump guifg=#008585
   hi default CrcDisTarget guifg=#cccc00
-  hi default CrcDisPc guibg=#00ff00 guifg=#000000
+  hi default CrcDisSymbol gui=bold guifg=#00ff00
+  hi default CrcDisPc gui=bold guifg=#00ff00
+  hi default CrcDisBrk gui=bold guifg=#00ff00 
   hi default CrcDisForcedRedisassembly guibg=#ff5500 guifg=#000000
   hi default CrcDisForcedRedisassemblyText guifg=#ff5500
   ]])
@@ -130,6 +137,40 @@ local function insn_refs(insn, refs)
   return ""
 end
 
+local function insn_ref_addr(insn, addr)
+  local res = nil
+
+  local groups = insn.detail.groups
+  local groups_size = #groups
+
+  local iscall = false
+  local isjump = false
+
+  for i = 0, groups_size - 1 do
+    local g = groups[i]
+    if g == 7 then isjump = true
+    elseif g == 2 then iscall = true end
+  end
+
+  local id = insn.id
+  if id == 349 or id == 350 then -- loopz, loopnz
+    isjump = true
+  end
+
+  if iscall or isjump then
+    if insn.detail.x86 ~= nil then
+      if insn.detail.x86.op_count > 0 then
+        local op = insn.detail.x86.operands[1]
+        if op.type == capstone.X86_OP_IMM then
+          res = op.imm
+        end
+      end
+    end
+  end
+
+  return res
+end
+
 local function insn_access_addr(insn, addr)
   local res = nil
 
@@ -178,6 +219,7 @@ local function dis(start, bytes, opts)
 
   local highlight = {}
   local lines = {}
+  local tags = {}
 
   M.refs = {}
   --TODO: xrefs key should be [to_ref, from_ref] 
@@ -238,7 +280,7 @@ local function dis(start, bytes, opts)
       local reg_id = M.reg.disasm_reg_id(disasm_reg_id)
       local reg_name
       if reg_id == nil then
-        print("Disasm reg nil", disasm_reg_id)
+        -- print("Disasm reg nil", disasm_reg_id, "at addr", string.format("%016x", addr))
         reg_name = "???"
       else
         reg_name = M.reg.name(reg_id)
@@ -258,7 +300,20 @@ local function dis(start, bytes, opts)
     local access_addr = insn_access_addr(it.insn, addr)
     local access_addr_str = ""
     if access_addr ~= nil then
-      access_addr_str = string.format(" (%016x)", access_addr)
+      local sym = M.sym[access_addr]
+      if sym == nil then
+        access_addr_str = string.format(" (%016x)", access_addr)
+      else
+        access_addr_str = string.format(" (%s: %016x)", sym, access_addr)
+      end
+    end
+
+    local ref_addr = insn_ref_addr(it.insn, addr)
+    if ref_addr ~= nil then
+      local sym = M.sym[ref_addr]
+      if sym ~= nil then
+        access_addr_str = string.format(" (%s)", sym, ref_addr)
+      end
     end
 
     local line = string.format("%016x   %-24s %-10s %-42s", -- [%s<= %s]",
@@ -269,6 +324,13 @@ local function dis(start, bytes, opts)
     local hl = { addr = it.insn.address }
     table.insert(highlight, hl)
 
+    local tag = {
+      addr = addr,
+      access_addr = access_addr,
+      ref_addr = ref_addr,
+      insn_size = size,
+    }
+    table.insert(tags, tag)
   end
 
   --TODO: Fix crash
@@ -281,14 +343,30 @@ local function dis(start, bytes, opts)
     local hl = highlight[i]
     local addr = hl.addr
 
+    if M.brk[addr] ~= nil then
+      hl.highlights = {}
+      local hl_addr = {
+        line = i - 1,
+        start_col = 0,
+        --hl_group = 'CrcDisBrk',
+        end_col = 0,
+        priority = 80,
+        virt_text_win_col = 17,
+        virt_text = {{'', 'CrcDisBrk'}},
+      }
+      table.insert(hl.highlights, 1, hl_addr)
+    end
+
     if pc ~= nil and addr == pc then
       hl.highlights = {}
       local hl_addr = {
         line = i - 1,
         start_col = 0,
         hl_group = 'CrcDisPc',
-        end_col = 16,
+        end_col = 0,
         priority = 90,
+        virt_text_win_col = 17,
+        virt_text = {{'󰐊', 'CrcDisPc'}},
       }
       table.insert(hl.highlights, 1, hl_addr)
 
@@ -306,6 +384,24 @@ local function dis(start, bytes, opts)
         virt_text = {{'Ref inside instruction', 'CrcDisForcedRedisassemblyText'}},
       }
       table.insert(hl.highlights, 1, hl_addr)
+    end
+
+    local sym = M.sym[addr]
+
+    if sym ~= nil then
+      if hl.highlights == nil then
+        hl.highlights = {}
+      end
+
+      local hl_name = {
+        line = i - 1,
+        start_col = 0,
+        hl_group = 'CrcDisFunc',
+        virt_lines = {{{sym .. ":", 'CrcDisSymbol'}}},
+        virt_lines_above = true,
+        priority = 99,
+      }
+      table.insert(hl.highlights, 1, hl_name)
     end
 
     local ref = M.refs[addr]
@@ -388,10 +484,16 @@ local function dis(start, bytes, opts)
           end_col = 16 + 24 + 4 + 10,
         }
         table.insert(hl.highlights, 1, hl_addr)
+
+        if iscall then
+          hl_group = 'CrcDisTarget'
+        else
+          hl_group = 'CrcDisJump'
+        end
         local hl_addr2 = {
           line = i - 1,
           start_col = 55,
-          hl_group = 'CrcDisTarget',
+          hl_group = hl_group,
           end_col = 55 + 2 + 16,
         }
         table.insert(hl.highlights, 1, hl_addr2)
@@ -399,10 +501,35 @@ local function dis(start, bytes, opts)
     end
   end
 
-  return lines, highlight
+  return lines, highlight, tags
 end
 
 local function setup_keymaps(buffer)
+  vim.keymap.set('n', 'l',
+    function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local tag = (buffer.hex.tags or {})[row]
+      if tag == nil then
+        return
+      end
+ 
+      local addr = tag.addr
+
+      vim.fn.inputsave()
+      local label = vim.fn.input("Input label:")
+      vim.fn.inputrestore()
+      if label == "" then
+        return
+      end
+
+      M.sym[addr] = label
+
+      buffer:jump(addr)
+
+    end,
+    { buffer = buffer.handle(), desc = "Label current address"}
+  )
+
   vim.keymap.set('n', 'ga',
     function()
       local addr
@@ -438,6 +565,59 @@ local function setup_keymaps(buffer)
       buffer:jump(addr)
     end,
     { buffer = buffer.handle(), desc = "Go to PC"}
+  )
+
+  vim.keymap.set('n', 'gr',
+    function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local tag = (buffer.hex.tags or {})[row]
+      if tag ~= nil then
+        local addr = tag.access_addr or tag.ref_addr
+        if addr ~= nil then
+          if buffer.hex.jump_history == nil then
+            buffer.hex.jump_history = {}
+          end
+          table.insert(buffer.hex.jump_history, tag.addr)
+
+          buffer:jump(addr)
+        end
+      end
+    end,
+    { buffer = buffer.handle(), desc = "Go to referenced address"}
+  )
+
+  vim.keymap.set('n', 'gb',
+    function()
+      if buffer.hex.jump_history == nil or #buffer.hex.jump_history == 0 then
+        return
+      end
+
+      local addr = buffer.hex.jump_history[#buffer.hex.jump_history]
+      table.remove(buffer.hex.jump_history, #buffer.hex.jump_history)
+
+      buffer:jump(addr)
+    end,
+    { buffer = buffer.handle(), desc = "Go back"}
+  )
+
+  vim.keymap.set('n', 'b',
+    function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local tag = (buffer.hex.tags or {})[row]
+      if tag ~= nil then
+        local addr = tag.addr
+        if addr ~= nil then
+          if M.brk[addr] ~= nil then
+            M.brk[addr] = nil
+          else
+            M.brk[addr] = { addr = addr, }
+          end
+
+          buffer:jump(addr)
+        end
+      end
+    end,
+    { buffer = buffer.handle(), desc = "Set/delete breakpoint"}
   )
 
   vim.keymap.set('n', 'bd',
@@ -537,6 +717,13 @@ local function setup_keymaps(buffer)
     { buffer = buffer.handle(), desc = "Show/hide bytes"}
   )
 
+  buffer.go_to_pc = function()
+    local addr = M.reg.pc()
+
+    buffer:jump(addr)
+
+    show_running_status()
+  end
 end
 
 local function jump(buffer, addr)
@@ -565,6 +752,14 @@ local function jump(buffer, addr)
   end
 
   M.dis(buffer, from, size, opts)
+
+  local tags = buffer.hex.tags or {}
+  for row, tag in ipairs(tags) do
+    if tag.addr == addr then
+      vim.cmd(":" .. tostring(row))
+      break
+    end
+  end
 
   --TODO: Move cursor in GUI to the specified address
 end
@@ -610,13 +805,14 @@ M.dis = function(buffer, from, size_or_bytes, opts)
 
   opts = opts or {}
 
-  local lines, highlight = dis(from, bytes, opts)
+  local lines, highlight, tags = dis(from, bytes, opts)
 
   buffer.update(lines, highlight)
 
   if buffer.hex == nil then
     buffer.hex = {}
   end
+  buffer.hex.tags = tags
   buffer.hex.opts = opts
   buffer.hex.opts.fixed = fixed
   if buffer.hex.opts.show_bytes == nil then
@@ -630,8 +826,8 @@ M.dis = function(buffer, from, size_or_bytes, opts)
   end
 
   setup_keymaps(buffer)
-end
 
+end
 
 return M
 
