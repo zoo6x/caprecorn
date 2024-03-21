@@ -14,3 +14,6 @@
   * https://malwareandstuff.com/blog/
 
   * https://hxp.io/blog/16/CONFidence-CTF-2015-Reversing-400-Deobfuscate-Me-writeup/
+
+  * https://github.com/rshipp/awesome-malware-analysis
+  * https://www.msreverseengineering.com/blog/2018/1/23/a-walk-through-tutorial-with-code-on-statically-unpacking-the-finspy-vm-part-one-x86-deobfuscation

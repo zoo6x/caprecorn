@@ -70,9 +70,13 @@
 
 # TO SEE
 
+https://triton-library.github.io/
 https://github.com/ampotos/dynStruct
 DynamoRIO
 https://github.com/plasma-disassembler/plasma/blob/master/plasma/lib/generate_ast.py
+https://github.com/Cisco-Talos/ROPMEMU
+https://github.com/panda-re/panda
+https://github.com/jordan9001/dobby2
 
 Also OllyDbg, x86dbg 
 
