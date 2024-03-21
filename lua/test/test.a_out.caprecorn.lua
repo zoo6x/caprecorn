@@ -1,16 +1,12 @@
 --
+-- Article about PLT and GOT structure
+-- https://gist.github.com/x0nu11byt3/bcb35c3de461e5fb66173071a2379779
+-- https://github.com/kubo/plthook
+-- https://stackoverflow.com/questions/62611218/parse-plt-stub-addresses-and-names
+--
+-- Text segment can be identified as a LOAD segment with EXECUTE protection
+-- Then figure out PLT structure...
 
--- Catch all writes to this area? Certain address?
--- Map 0x2000 at   0x00007fffb7dc7000 
--- Damaged name at 0x00007fffb7dc70c0
--- How to debug it? 
--- Stop after syscall with certain parameters, w/o stepping back?
--- I.e., stop after a successful syscall execution
--- Implement fstat() before this ?
--- Or:
---  - Turn off ASRL
---  - Make sure Linux, Qiling and we mmap at the same addresses
---  - Integrate with Qiling and compare memory and registers
 
 C = require('caprecorn')
 
@@ -35,7 +31,7 @@ C.hex.dump(gdt_dump_buf, 0x30000, 16*8, { width = 8, show_chars = false, })
 local dis_buf = C.buf.new("Disassembly")
 local reg_buf = C.buf.new("Regs")
 reg_buf.opts = {
-  filter = { base = false, flags = false, vector = false, segment = false, fp = false, system = false, }
+  filter = { base = false, vector = false, segment = false, fp = false, system = false, }
 }
 local vector_reg_buf = C.buf.new("Vector Regs")
 vector_reg_buf.opts = {
@@ -65,26 +61,31 @@ dis_buf.on_change = function()
   C.reg.dump(reg_buf)
   C.reg.dump(vector_reg_buf)
   C.reg.dump(segment_reg_buf)
+
+  dump_buf:dump()
 end
 
 local program, stack, addr, start
 
 --TODO: Tiniest ever ELF https://www.muppetlabs.com/~breadbox/software/tiny/teensy.html
-program = '/home/john/src/junk/stat'
+program = '/home/john/bin/malware/2/level3'
+-- program = '/home/john/src/junk/stat'
 -- program = '/bin/ls'
 
 local env = {
-  [[LD_DEBUG=all]]
+--  [[LD_DEBUG=all]]
+  [[LD_PRELOAD=/usr/local/lib/preload.so]]
 }
 
 local elf = C.elf.loadfile(program, 
   { 
-    argv = { program }, 
+    argv = { program, "flag" }, 
     env = env,
     rootfs = "/home/john/src/qiling-dev/examples/rootfs/x8664_linux_latest",
   })
 
---C.emu.set_breakpoints({ 0x00007ffff7ff7aa4 })
+-- C.emu.set_breakpoints({ elf.entry, 0x0000555555555454, 0x000055555555549e })
+C.emu.set_breakpoints({ elf.entry })
 
 local code = C.mem.read(elf.mem_start, 0x4000)
 
@@ -92,6 +93,7 @@ stack = elf.stack_pointer
 start = elf.interp_entry
 
 C.reg.sp(stack)
+_log.write(string.format("Start = %016x", start))
 C.reg.pc(start)
 
 print(string.format("Stack addr = %016x size = %016x", elf.stack_addr, elf.stack_size))
@@ -107,3 +109,17 @@ C.reg.dump(vector_reg_buf)
 C.reg.dump(segment_reg_buf)
 
 dis.focus()
+
+_log.write("Running program till entry...")
+C.unstop()
+local res, status = C.start(C.reg.pc(), -1, 0, 0)
+C.emu.stop() -- Ugly, to fix
+if not res then
+  _log.write(string.format("Error at PC=%016x [%s]", C.reg.pc(), status))
+else
+  _log.write(string.format("Stopped at PC=%016x", C.reg.pc()))
+end
+_log.write(string.format("Program PC=%016x", elf.entry))
+
+dis_buf.go_to_pc()
+
