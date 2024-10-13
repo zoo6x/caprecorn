@@ -17,3 +17,5 @@
 
   * https://github.com/rshipp/awesome-malware-analysis
   * https://www.msreverseengineering.com/blog/2018/1/23/a-walk-through-tutorial-with-code-on-statically-unpacking-the-finspy-vm-part-one-x86-deobfuscation
+
+  * https://old.reddit.com/r/LinuxMalware/comments/ba6thm/analysis_of_new_malware_list_postmmd_blog/
