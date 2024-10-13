@@ -74,7 +74,12 @@ M.dump = function(buffer, opts)
     buffer.opts.old_reg_values = {}
   end
 
+  if buffer.opts.old_flag_values == nil then
+    buffer.opts.old_flag_values = {}
+  end
+
   local old_reg_values = buffer.opts.old_reg_values
+  local old_flag_values = buffer.opts.old_flag_values
 
   local lines = {}
   local highlight = {}
@@ -95,6 +100,49 @@ M.dump = function(buffer, opts)
     end
     table.sort(reg_ids)
     buffer.opts.reg_ids = reg_ids
+  end
+
+  if buffer.opts.show_flags then
+    local line = "      "
+
+    local function show_flag(flagid, display_set, display_reset)
+      local flag, value, old_value
+      flag = flagid
+      value = M.flag(flag)
+      if value == nil then
+        -- Flag not supported by current architecture
+        return
+      end
+      old_value = old_flag_values[flag]
+      old_flag_values[flag] = value
+      if old_value ~= nil and old_value ~= value then
+        local hl = { }
+        hl.highlights = {}
+        local hl_addr = {
+          line = 0,
+          start_col = string.len(line) + 1,
+          hl_group = 'CrcRegChanged',
+          end_col = string.len(line) + 1 + string.len(display_set), -- assume display strings have the same length
+          priority = 90,
+        }
+        table.insert(hl.highlights, 1, hl_addr)
+        table.insert(highlight, hl)
+      end
+      if value then
+        line = line .. display_set
+      else
+        line = line .. display_reset
+      end
+    end
+
+    show_flag(M._flagid.ZERO, "  Z", " nz")
+    show_flag(M._flagid.CARRY, "  C", " nc")
+    show_flag(M._flagid.NEGATIVE, "  S", " ns")
+    show_flag(M._flagid.OVERFLOW, "  O", " no")
+    show_flag(M._flagid.PARITY, " PE", " PO")
+    show_flag(M._flagid.DIRECTION, " D-", " D+")
+
+    table.insert(lines, line)
   end
 
   local reg_values = M.read(reg_ids)
@@ -125,7 +173,7 @@ M.dump = function(buffer, opts)
     if changed then
       hl.highlights = {}
       local hl_addr = {
-        line = i - 1,
+        line = i - (buffer.opts.show_flags and 0 or 1),
         start_col = 0,
         hl_group = 'CrcRegChanged',
         end_col = 24,
@@ -134,8 +182,6 @@ M.dump = function(buffer, opts)
       table.insert(hl.highlights, 1, hl_addr)
     end
     table.insert(highlight, hl)
-
-
   end
 
   buffer.opts.old_reg_values = reg_values

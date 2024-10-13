@@ -329,7 +329,6 @@ local x86_capstone_to_unicorn_reg_map = {
   [capstone.X86_REG_BND3] = x86_const.UC_X86_REG_BND3,
 }
 
-
 local arch_pc = {
   [M.arch.X86_16] = x86_const.UC_X86_REG_IP,
   [M.arch.X86_32] = x86_const.UC_X86_REG_EIP,
@@ -352,6 +351,59 @@ local arch_sp = {
   [M.arch.ARM_V8] = arm_const.UC_ARM_REG_SP,
 
   [M.arch.AARCH64] = aarch64_const.UC_ARM64_REG_SP,
+}
+
+local arch_flags = {
+  [M.arch.X86_16] = x86_const.UC_X86_REG_FLAGS,
+  [M.arch.X86_32] = x86_const.UC_X86_REG_EFLAGS,
+  [M.arch.X86_64] = x86_const.UC_X86_REG_RFLAGS,
+
+  [M.arch.ARM_V6] = arm_const.UC_ARM_REG_CPSR,
+  [M.arch.ARM_V7] = arm_const.UC_ARM_REG_CPSR,
+  [M.arch.ARM_V8] = arm_const.UC_ARM_REG_CPSR,
+
+  [M.arch.AARCH64] = aarch64_const.UC_ARM64_REG_NZCV,
+}
+
+local flag = {
+  ZERO = 1,
+  CARRY = 2,
+  NEGATIVE = 3,
+  OVERFLOW = 4,
+  PARITY = 5,
+  DIRECTION = 6,
+}
+
+M.flag = flag
+
+-- Flags
+
+local x86_flag = {
+  [flag.ZERO] = 0x0040,
+  [flag.CARRY] = 0x0001,
+  [flag.NEGATIVE] = 0x0080,
+  [flag.OVERFLOW] = 0x0800,
+  [flag.PARITY] = 0x0004,
+  [flag.DIRECTION] = 0x0400,
+}
+
+local arm_flag = {
+  [flag.ZERO] = 0x40000000,
+  [flag.CARRY] = 0x20000000,
+  [flag.NEGATIVE] = 0x80000000,
+  [flag.OVERFLOW] = 0x10000000,
+}
+
+local arch_flag = {
+  [M.arch.X86_16] = x86_flag,
+  [M.arch.X86_32] = x86_flag,
+  [M.arch.X86_64] = x86_flag,
+
+  [M.arch.ARM_V6] = arm_flag,
+  [M.arch.ARM_V7] = arm_flag,
+  [M.arch.ARM_V8] = arm_flag,
+
+  [M.arch.AARCH64] = arm_flag,
 }
 
 -- Registers
@@ -619,7 +671,7 @@ local function syscall_callback(engine)
   end
   local param_fmt = string.rep("%016x ", params)
 
-  if handler == nuil then
+  if handler == nil then
     _log.write(string.format("UNHANDLED SYSCALL %3d at %016x %-10s " .. param_fmt,
       rax, rip, name, rdi, rsi, rdx, r10, r8, r9))
   end
@@ -691,6 +743,8 @@ M.open = function(_arch, reg, emu, mem)
   -- Architecture-neutral registers
   reg._pc = arch_pc[_arch]
   reg._sp = arch_sp[_arch]
+  reg._flags = arch_flags[_arch]
+  reg._flag = arch_flag[_arch]
   -- Architecture-specific registers
   reg.x86 = {}
   reg.x86.gdtr = x86_const.UC_X86_REG_GDTR

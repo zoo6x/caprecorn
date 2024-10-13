@@ -23,7 +23,6 @@ M.engine.UNICORN = "UNICORN"
 M.engine.QILING = "QILING"
 
 setmetatable(M.engine, { __call = function (_, engine)
-  print("Engine=", engine)
   if M.engine[engine] ~= nil then
     M.__engine = engine
   else
@@ -41,6 +40,8 @@ setmetatable(M.engine, { __call = function (_, engine)
       _unicorn.open(M._arch, M.reg, M.emu, M.mem)
       M._engine = _unicorn.engine
       M._disasm = _unicorn.disasm
+      M.flag = _unicorn.flag
+      M.reg._flagid = _unicorn.flag -- Ugly, used in reg display
       M.dis.setup(M)
       M.elf.init()
     end
@@ -78,6 +79,50 @@ setmetatable(M.engine, { __call = function (_, engine)
         M._engine:reg_write(M.reg._sp, val)
       else
         return M._engine:reg_read(M.reg._sp)
+      end
+    end
+
+    M.reg.flags = function(val)
+      if M._engine == nil then
+        error("Engine not initialized")
+      end
+
+      if val ~= nil then
+        M._engine:reg_write(M.reg._flags, val)
+      else
+        return M._engine:reg_read(M.reg._flags)
+      end
+    end
+
+    M.reg.flag = function(flag, val)
+      if M._engine == nil then
+        error("Engine not initialized")
+      end
+
+      if flag == nil then
+        error("Flag not specified!")
+      end
+
+      local flags = M.reg.flags()
+      local flag_mask = M.reg._flag[flag]
+      if flag_mask == nil then
+        -- Flag not supported by the architecture
+        print(M.reg._flag, flag, M.reg._flag[flag], table.getn(M.reg._flag))
+        error("Flag not supported by current architecture!")
+        return nil
+      end
+
+      if val ~= nil then
+        if val == false then
+          flags = bit.band(flags, bit.bnot(flag_mask))
+        elseif val == true then
+          flags = bit.bor(flags, flag_mask)
+        else
+          error("Flag value must be either true or false!")
+        end
+        M.reg.flags(flags)
+      else
+        return bit.band(flags, flag_mask) ~= 0
       end
     end
 
