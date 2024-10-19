@@ -17,6 +17,9 @@ M.mem = require("mem")
 M.reg = {}
 M.emu = {}
 
+-- Symbol references etc
+M.ref = require("ref")
+
 -- Supported emulation engines
 M.engine = {}
 M.engine.UNICORN = "UNICORN"
@@ -107,8 +110,6 @@ setmetatable(M.engine, { __call = function (_, engine)
       local flag_mask = M.reg._flag[flag]
       if flag_mask == nil then
         -- Flag not supported by the architecture
-        print(M.reg._flag, flag, M.reg._flag[flag], table.getn(M.reg._flag))
-        error("Flag not supported by current architecture!")
         return nil
       end
 

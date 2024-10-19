@@ -157,12 +157,23 @@ local function insn_ref_addr(insn, addr)
     isjump = true
   end
 
-  if iscall or isjump then
-    if insn.detail.x86 ~= nil then
-      if insn.detail.x86.op_count > 0 then
-        local op = insn.detail.x86.operands[1]
-        if op.type == capstone.X86_OP_IMM then
-          res = op.imm
+  if insn.detail.x86 ~= nil then
+    if insn.detail.x86.op_count > 0 then
+      local op = insn.detail.x86.operands[1]
+      if op.type == capstone.X86_OP_IMM then
+        local base = op.imm
+        if M.sym[base] ~= nil then
+          res = base
+        end
+      else
+        op = insn.detail.x86.operands[2]
+        if op then
+          if op.type == capstone.X86_OP_IMM then
+            local base = op.imm
+            if M.sym[base] ~= nil then
+              res = base
+            end
+          end
         end
       end
     end
@@ -176,10 +187,12 @@ local function insn_access_addr(insn, addr)
 
   if insn.detail.x86 ~= nil then
     for i = 1, insn.detail.x86.op_count do
-      if insn.detail.x86.operands[i].type == capstone.X86_OP_MEM then
-        local base = insn.detail.x86.operands[i].mem.base
+      local op = insn.detail.x86.operands[i]
+      local op_type = op.type
+      if op_type == capstone.X86_OP_MEM then
+        local base = op.mem.base
         if base == capstone.X86_REG_RIP or base == capstone.X86_REG_EIP then
-          local disp = insn.detail.x86.operands[i].mem.disp
+          local disp = op.mem.disp
           -- Assume displacement is 32 bits maximum
           if disp > 0x7fffffff then
             disp = -disp
@@ -229,8 +242,18 @@ local function dis(start, bytes, opts)
 
   local last_addr = nil
   local addr
-  while M.disasm.disasmiter(it) do
+  while true do
+    if not M.disasm.disasmiter(it) then
+      break
+    end
     addr = it.insn.address
+
+    local custom_disasm = false
+    local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
+    if opts.disasm_callback then
+      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights 
+        = opts.disasm_callback(addr, code, code_offset)
+    end
 
     local done = false
     if ensure_addr_list ~= nil then
@@ -260,14 +283,23 @@ local function dis(start, bytes, opts)
       break
     end
 
-    local size = it.insn.size
-    code_offset = code_offset + size
+    local size
+
+    if custom_disasm then
+      size = custom_size
+    else
+      size = it.insn.size
+    end
 
     local bytes_str = ""
     for i = 0, size - 1 do
-      local byte = it.insn.bytes[i]
-      bytes_str = bytes_str .. string.format("%02x", byte)
+      local byte = string.byte(string.sub(code, code_offset + i + 1, code_offset + i + 1))
+      if byte ~= nil then
+        bytes_str = bytes_str .. string.format("%02x", byte)
+      end
     end
+
+    code_offset = code_offset + size
 
     local regs_read_count = it.insn.detail.regs_read_count
     local regs_read = it.insn.detail.regs_read
@@ -316,8 +348,19 @@ local function dis(start, bytes, opts)
       end
     end
 
+    local mnemonic
+    local op_str
+
+    if custom_disasm then
+      mnemonic = custom_mnemonic
+      op_str = custom_op_str
+    else
+      mnemonic = it.insn.mnemonic
+      op_str = it.insn.op_str .. access_addr_str
+    end
+
     local line = string.format("%016x   %-24s %-10s %-42s", -- [%s<= %s]",
-      addr, bytes_str, it.insn.mnemonic, it.insn.op_str .. access_addr_str) --, regs_write_str, regs_read_str)
+      addr, bytes_str, mnemonic, op_str) --, regs_write_str, regs_read_str)
 
     table.insert(lines, line)
 
@@ -331,6 +374,13 @@ local function dis(start, bytes, opts)
       insn_size = size,
     }
     table.insert(tags, tag)
+
+    if custom_disasm then
+      code = string.sub(code, code_offset + 1)
+      code_offset = 0
+      M.disasm.freeiterator(it)
+      it = M.disasm.createiterator(addr + custom_size, code)
+    end
   end
 
   --TODO: Fix crash
@@ -436,15 +486,19 @@ local function dis(start, bytes, opts)
         end
 
         if iscall then
-          local hl_name = {
-            line = i - 1,
-            start_col = 0,
-            hl_group = 'CrcDisFunc',
-            virt_lines = {{{string.format('func_%016x: [%d]', addr, #hl.highlights), 'CrcDisTarget'}}},
-            virt_lines_above = true,
-            priority = 99,
-          }
-          table.insert(hl.highlights, 1, hl_name)
+          if M.sym[addr] == nil then
+            local label = string.format('func_%016x: [%d]', addr, #hl.highlights)
+
+            local hl_name = {
+              line = i - 1,
+              start_col = 0,
+              hl_group = 'CrcDisFunc',
+              virt_lines = {{{label, 'CrcDisTarget'}}},
+              virt_lines_above = true,
+              priority = 99,
+            }
+            table.insert(hl.highlights, 1, hl_name)
+          end
         end
 
         local hl_group
@@ -527,7 +581,7 @@ local function setup_keymaps(buffer)
       buffer:jump(addr)
 
     end,
-    { buffer = buffer.handle(), desc = "Label current address"}
+    { buffer = buffer.handle(), desc = " Label current address"}
   )
 
   vim.keymap.set('n', 'ga',
@@ -555,7 +609,7 @@ local function setup_keymaps(buffer)
       buffer:jump(addr)
 
     end,
-    { buffer = buffer.handle(), desc = "Go to address"}
+    { buffer = buffer.handle(), desc = " Go to address"}
   )
 
   vim.keymap.set('n', 'gp',
@@ -564,7 +618,7 @@ local function setup_keymaps(buffer)
 
       buffer:jump(addr)
     end,
-    { buffer = buffer.handle(), desc = "Go to PC"}
+    { buffer = buffer.handle(), desc = " Go to PC"}
   )
 
   vim.keymap.set('n', 'gr',
@@ -583,7 +637,7 @@ local function setup_keymaps(buffer)
         end
       end
     end,
-    { buffer = buffer.handle(), desc = "Go to referenced address"}
+    { buffer = buffer.handle(), desc = " Go to referenced address"}
   )
 
   vim.keymap.set('n', 'gb',
@@ -597,7 +651,7 @@ local function setup_keymaps(buffer)
 
       buffer:jump(addr)
     end,
-    { buffer = buffer.handle(), desc = "Go back"}
+    { buffer = buffer.handle(), desc = " Go back"}
   )
 
   vim.keymap.set('n', 'b',
@@ -617,14 +671,14 @@ local function setup_keymaps(buffer)
         end
       end
     end,
-    { buffer = buffer.handle(), desc = "Set/delete breakpoint"}
+    { buffer = buffer.handle(), desc = " Set/delete breakpoint"}
   )
 
   vim.keymap.set('n', 'bd',
     function()
       M.emu.set_breakpoints({})
     end,
-    { buffer = buffer.handle(), desc = "Delete breakpoints"}
+    { buffer = buffer.handle(), desc = " Delete breakpoints"}
   )
 
   local show_running_status = function()
@@ -695,12 +749,12 @@ local function setup_keymaps(buffer)
     show_running_status()
   end
 
-  vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = "Run"})
-  vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = "Run"})
+  vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = " Run"})
+  vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = " Run"})
 
   vim.keymap.set('n', 'S', function()
     M.emu.stop()
-  end, { buffer = buffer.handle(), desc = "Stop"})
+  end, { buffer = buffer.handle(), desc = " Stop"})
 
   vim.keymap.set('n', 'vb',
     function()
@@ -714,7 +768,7 @@ local function setup_keymaps(buffer)
       M.dis(buffer, buffer.hex.from, buffer.hex.size, buffer.hex.opts)
 
     end,
-    { buffer = buffer.handle(), desc = "Show/hide bytes"}
+    { buffer = buffer.handle(), desc = " Show/hide bytes"}
   )
 
   buffer.go_to_pc = function()

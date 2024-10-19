@@ -64,7 +64,7 @@ local elf = C.elf.loadfile(program,
   })
 
 
-local code = C.mem.read(elf.mem_start, 0x4000)
+local code = C.mem.read(elf.entry, 0x4000)
 
 stack = elf.stack_pointer
 start = elf.interp_entry
@@ -73,41 +73,60 @@ C.reg.sp(stack)
 C.reg.pc(start)
 
 local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
-C.hex.dump(dump_buf, elf.stack_addr, 4096)
+C.hex.dump(dump_buf, 0x4000b2, 4096)
 dump_bottom.buf(dump_buf)
-
-C.dis.maxsize = 16384 --TODO: Why maxsize in opts does not work? 
-C.dis.dis(dis_buf, elf.mem_start, #code, { pc = C.reg.pc(), maxsize = 4096 })
 
 C.reg.dump(reg_buf)
 C.reg.dump(vector_reg_buf)
 
-local flags = C.reg.flags()
-local Z = C.flag.ZERO
-local flag_Z = C.reg.flag(C.flag.ZERO)
-local flag_C = C.reg.flag(C.flag.CARRY)
-C.reg.flag(C.flag.ZERO, true)
-local flag_Z2 = C.reg.flag(C.flag.ZERO)
-local flags2 = C.reg.flags()
-print("Flags Z C Z' flags=", flags, flag_Z, flag_C, flag_Z2, flags2)
+C.ref.label(0x400089, 'binary_interpreter')
+C.ref.label(0x400090, 'command')
+C.ref.label(0x40009d, 'find1')
+C.ref.label(0x4000ac, 'match')
+C.ref.label(0x4000b2, 'INPUT')
+C.ref.label(0x4000cb, 'HEAD')
+C.ref.label(0x10000028, 'LATEST')
+C.ref.label(0x10000030, 'HERE')
+
+local sforth_refs = {}
+
+local function sforth_disasm(addr, code, code_offset)
+  local marker = string.byte(string.sub(code, code_offset + 1, code_offset + 1))
+  if marker ~= 0x99 then
+    return false
+  end
+  local size_opts = string.byte(string.sub(code, code_offset + 2, code_offset + 2))
+  if size_opts == nil then
+    return false
+  end
+
+  if bit.band(size_opts, 0x60) == 0 then
+    local size = bit.band(size_opts, 0x1F)
+    local name = string.sub(code, code_offset + 3, code_offset + size + 2)
+    local def_addr = addr + size + 2
+    C.ref.label(def_addr, name)
+
+    local name1 = string.sub(name, 1, 1)
+    sforth_refs[name1] = name
+
+    return true, size + 2, ":", name
+  else
+    local name1 = string.sub(code, code_offset + 2, code_offset + 2)
+    local name = sforth_refs[name1]
+    if name == nil then
+      name = "!!UNDEFINED!!"
+    end
+    return true, 2, "CALL", name
+  end
+end
+
+C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work? 
+C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
 
 dis.focus()
 
-_log.write("Running program till entry...")
-if elf.interp_entry ~= nil then
-  C.emu.set_breakpoints({ elf.entry })
-  C.unstop()
-  local res, status = C.start(C.reg.pc(), -1, 0, 0)
-  C.emu.stop() -- Ugly, to fix
-  if not res then
-    _log.write(string.format("Error at PC=%016x [%s]", C.reg.pc(), status))
-  else
-    _log.write(string.format("Stopped at PC=%016x", C.reg.pc()))
-  end
-  _log.write(string.format("Program PC=%016x", elf.entry))
-else
-  C.reg.pc(elf.entry)
-end
+C.reg.pc(elf.entry)
+
 dis_buf.go_to_pc()
 
 
