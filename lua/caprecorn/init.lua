@@ -17,6 +17,9 @@ M.mem = require("mem")
 M.reg = {}
 M.emu = {}
 
+-- Breakpoints
+M.brk = require("brk")
+
 -- Symbol references etc
 M.ref = require("ref")
 
@@ -184,16 +187,34 @@ setmetatable(M.engine, { __call = function (_, engine)
             M.emu.stop_pc = nil
           end
           return
-
         end
 
-        local res, status = M.start(M.reg.pc(), -1, 0, 100)
+        local pc = M.reg.pc()
+
+        local breakpoints = {}
+        for addr, _ in pairs(M.brk.brk) do
+          if addr ~= pc then
+            table.insert(breakpoints, addr)
+          end
+        end
+
+        M.emu.set_breakpoints(breakpoints)
+
+        local res, status = M.start(pc, -1, 0, 100)
         if not res then
           idle:stop()
           M._stopped = true
           print(string.format("Error at PC=%016x", M.reg.pc()))
           print(status)
         end
+
+        local stop_pc = M.reg.pc()
+        if M.brk.brk[stop_pc] ~= nil then
+          idle:stop()
+          M._stopped = true
+          print(string.format("Emulator stopped at breakpoint PC=%016x", stop_pc))
+        end
+
         --TODO: Need to detect stopping on a set_breakpoints
         --TODO: Re-set breakpoints after one has been hit. ctl_get_exits()
       end)

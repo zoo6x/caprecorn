@@ -8,9 +8,7 @@ C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
 C.open()
-_log.write("Before mmap")
 C.mem.map(0x555555550000, 0x100000)
-_log.write("After mmap")
 
 C.win.begin_layout()
 
@@ -18,6 +16,7 @@ local dump = C.win.tab()
 
 local dump_buf = C.buf.new("Boot dump")
 local dis_buf = C.buf.new("Boot disassembly")
+local dis_buf_target = C.buf.new("Target disassembly")
 local reg_buf = C.buf.new("Regs")
 reg_buf.opts = {
   show_flags = true,
@@ -85,8 +84,12 @@ C.ref.label(0x40009d, 'find1')
 C.ref.label(0x4000ac, 'match')
 C.ref.label(0x4000b2, 'INPUT')
 C.ref.label(0x4000cb, 'HEAD')
-C.ref.label(0x10000028, 'LATEST')
-C.ref.label(0x10000030, 'HERE')
+C.ref.label(0x10000000, '#IN', { data = true, size = 8 })
+C.ref.label(0x10000008, 'TIB', { data = true, size = 8 })
+C.ref.label(0x10000010, '>IN', { data = true, size = 8 })
+C.ref.label(0x10000020, 'STATE', { data = true, size = 8 })
+C.ref.label(0x10000028, 'LATEST', { data = true, size = 8 })
+C.ref.label(0x10000030, 'TEXT')
 
 local sforth_refs = {}
 
@@ -122,6 +125,9 @@ end
 
 C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work? 
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
+
+C.dis.maxsize = 90000 --TODO: Why maxsize in opts does not work? 
+C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 })
 
 dis.focus()
 

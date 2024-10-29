@@ -39,6 +39,7 @@ M.refs = {}
 -- References: symbols etc
 local ref = require("ref")
 M.sym = ref.sym
+M.datatype = ref.datatype
 
 -- Breakpoints
 local brk = require("brk")
@@ -58,7 +59,7 @@ local function create_highlight()
   hi default CrcDisTarget guifg=#cccc00
   hi default CrcDisSymbol gui=bold guifg=#00ff00
   hi default CrcDisPc gui=bold guifg=#00ff00
-  hi default CrcDisBrk gui=bold guifg=#00ff00 
+  hi default CrcDisBrk gui=bold guifg=#ff7700 
   hi default CrcDisForcedRedisassembly guibg=#ff5500 guifg=#000000
   hi default CrcDisForcedRedisassemblyText guifg=#ff5500
   ]])
@@ -243,15 +244,34 @@ local function dis(start, bytes, opts)
   local last_addr = nil
   local addr
   while true do
+
     if not M.disasm.disasmiter(it) then
       break
     end
     addr = it.insn.address
 
+--[[ TODO: DO    
+    local datatype = M.datatype[addr]
+    if datatype ~= nil and datatype.data then
+      local size = datatype.size or 1
+      local count = datatype.count or 1
+      local nbytes = count * size
+
+      local line = "data " .. tostring(size) .. " * " .. tostring(count)
+      table.insert(lines, line)
+
+      code = string.sub(code, code_offset + nbytes + 1)
+      code_offset = 0
+      M.disasm.freeiterator(it)
+      it = M.disasm.createiterator(addr + nbytes, code)
+
+      goto continue
+    end
+]]
     local custom_disasm = false
     local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
     if opts.disasm_callback then
-      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights 
+      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
         = opts.disasm_callback(addr, code, code_offset)
     end
 
@@ -381,6 +401,8 @@ local function dis(start, bytes, opts)
       M.disasm.freeiterator(it)
       it = M.disasm.createiterator(addr + custom_size, code)
     end
+
+    ::continue::
   end
 
   --TODO: Fix crash
@@ -400,8 +422,8 @@ local function dis(start, bytes, opts)
         start_col = 0,
         --hl_group = 'CrcDisBrk',
         end_col = 0,
-        priority = 80,
-        virt_text_win_col = 17,
+        priority = 90,
+        virt_text_win_col = 18,
         virt_text = {{'', 'CrcDisBrk'}},
       }
       table.insert(hl.highlights, 1, hl_addr)
@@ -412,7 +434,7 @@ local function dis(start, bytes, opts)
       local hl_addr = {
         line = i - 1,
         start_col = 0,
-        hl_group = 'CrcDisPc',
+        --hl_group = 'CrcDisPc',
         end_col = 0,
         priority = 90,
         virt_text_win_col = 17,
@@ -741,6 +763,8 @@ local function setup_keymaps(buffer)
       end
       if M.emu.stopped() then
         timer:stop()
+        
+        buffer:jump(M.reg.pc())
       end
     end))
 
