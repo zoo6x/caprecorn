@@ -250,7 +250,6 @@ local function dis(start, bytes, opts)
     end
     addr = it.insn.address
 
---[[ TODO: DO    
     local datatype = M.datatype[addr]
     if datatype ~= nil and datatype.data then
       local size = datatype.size or 1
@@ -265,9 +264,20 @@ local function dis(start, bytes, opts)
       M.disasm.freeiterator(it)
       it = M.disasm.createiterator(addr + nbytes, code)
 
+      local hl = { addr = addr }
+      table.insert(highlight, hl)
+
+      local tag = {
+        addr = addr,
+        access_addr = nil,
+        ref_addr = nil,
+        insn_size = size,
+      }
+      table.insert(tags, tag)
+
       goto continue
     end
-]]
+
     local custom_disasm = false
     local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
     if opts.disasm_callback then

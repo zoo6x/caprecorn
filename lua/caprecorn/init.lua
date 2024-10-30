@@ -191,6 +191,7 @@ setmetatable(M.engine, { __call = function (_, engine)
 
         local pc = M.reg.pc()
 
+        M.emu.set_breakpoints({})
         local breakpoints = {}
         for addr, _ in pairs(M.brk.brk) do
           if addr ~= pc then

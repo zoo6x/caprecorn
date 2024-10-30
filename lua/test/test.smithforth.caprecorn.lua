@@ -3,12 +3,10 @@ C = require('caprecorn')
 _log = require('_log')
 
 C.arch(C.arch.X86_64)
---C.arch(C.arch.AARCH64)
 C.engine(C.engine.UNICORN)
 C.disasm(C.disasm.CAPSTONE)
 
 C.open()
-C.mem.map(0x555555550000, 0x100000)
 
 C.win.begin_layout()
 
@@ -45,10 +43,6 @@ end
 local program, stack, addr, start, size
 
 program = '/home/john/src/forth/smithforth/SForth'
-stack = 0x555555553000
-addr  = 0x555555554000
-start = 0x555555555120
-size = 65536
 
 local env = {
 --  [[LD_DEBUG=all]]
@@ -59,7 +53,6 @@ local elf = C.elf.loadfile(program,
   {
     argv = { program, "flag" },
     env = env,
-    rootfs = "/home/john/src/qiling-dev/examples/rootfs/x8664_linux_latest",
   })
 
 
