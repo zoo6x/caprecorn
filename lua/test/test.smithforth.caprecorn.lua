@@ -104,6 +104,7 @@ local function sforth_disasm(addr, code, code_offset)
 
     local name1 = string.sub(name, 1, 1)
     sforth_refs[name1] = name
+
     local hl1 = {
       start_col = 44,
       end_col = 54,
@@ -122,7 +123,18 @@ local function sforth_disasm(addr, code, code_offset)
     if name == nil then
       name = "!!UNDEFINED!!"
     end
-    return true, 2, "CALL", name
+
+    local hl1 = {
+      start_col = 44,
+      end_col = 54,
+      hl_group = 'CrcDisCall',
+    }
+    local hl2 = {
+      start_col = 55,
+      end_col = 999,
+      hl_group = 'CrcDisTarget',
+    }
+    return true, 2, "FORTHCALL", name, { hl1, hl2 }
   end
 end
 
