@@ -426,7 +426,7 @@ local function dis(start, bytes, opts)
     local addr = hl.addr
 
     if M.brk[addr] ~= nil then
-      hl.highlights = {}
+      hl.highlights = hl.highlights or {}
       local hl_addr = {
         line = i - 1,
         start_col = 0,
@@ -440,7 +440,7 @@ local function dis(start, bytes, opts)
     end
 
     if pc ~= nil and addr == pc then
-      hl.highlights = {}
+      hl.highlights = hl.highlights or {}
       local hl_addr = {
         line = i - 1,
         start_col = 0,
@@ -456,7 +456,7 @@ local function dis(start, bytes, opts)
     end
 
     if forced_redisassembly_addresses[addr] then
-      hl.highlights = {}
+      hl.highlights = hl.highlights or {}
       local hl_addr = {
         line = i - 1,
         start_col = 0,
@@ -471,9 +471,7 @@ local function dis(start, bytes, opts)
     local sym = M.sym[addr]
 
     if sym ~= nil then
-      if hl.highlights == nil then
-        hl.highlights = {}
-      end
+      hl.highlights = hl.highlights or {}
 
       local hl_name = {
         line = i - 1,
@@ -489,9 +487,7 @@ local function dis(start, bytes, opts)
     local ref = M.refs[addr]
     if ref ~= nil then
       if ref.refs_from ~= nil then
-        if hl.highlights == nil then
-          hl.highlights = {}
-        end
+        hl.highlights = hl.highlights or {}
 
         local iscall = false
         local isjump = false
