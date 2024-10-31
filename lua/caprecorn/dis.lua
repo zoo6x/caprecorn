@@ -53,13 +53,14 @@ local function create_highlight()
   hi default link CrcDisNormal Normal
   hi default CrcDisComment guifg=#333333
   hi default CrcDisFunc guifg=#ff0000
+  hi default CrcDisDef guifg=#ff0000 gui=bold
   hi default CrcDisLocal guifg=#05a5af
   hi default CrcDisCall guifg=#aa0000
   hi default CrcDisJump guifg=#008585
   hi default CrcDisTarget guifg=#cccc00
   hi default CrcDisSymbol gui=bold guifg=#00ff00
   hi default CrcDisPc gui=bold guifg=#00ff00
-  hi default CrcDisBrk gui=bold guifg=#ff7700 
+  hi default CrcDisBrk gui=bold guifg=#ffaa00 
   hi default CrcDisForcedRedisassembly guibg=#ff5500 guifg=#000000
   hi default CrcDisForcedRedisassemblyText guifg=#ff5500
   ]])
@@ -240,6 +241,7 @@ local function dis(start, bytes, opts)
   -- Or maybe [to_ref] = { [from_ref] = { type = ..., analysis_type = 'STATIC', ... } }
 
   local forced_redisassembly_addresses = {}
+  local custom_highlights = {}
 
   local last_addr = nil
   local addr
@@ -279,10 +281,11 @@ local function dis(start, bytes, opts)
     end
 
     local custom_disasm = false
-    local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
+    local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlight
     if opts.disasm_callback then
-      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlights
+      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlight
         = opts.disasm_callback(addr, code, code_offset)
+      custom_highlights[addr] = custom_disasm_highlight
     end
 
     local done = false
@@ -482,6 +485,21 @@ local function dis(start, bytes, opts)
         priority = 99,
       }
       table.insert(hl.highlights, 1, hl_name)
+    end
+
+    local custom_highlight = custom_highlights[addr]
+    if custom_highlight ~= nil then
+      hl.highlights = hl.highlights or {}
+
+      if type(custom_highlight) == "table" then
+        for _, custom_highlight1 in ipairs(custom_highlight) do
+          custom_highlight1.line = i - 1
+          table.insert(hl.highlights, 1, custom_highlight1)
+        end
+      else
+        custom_highlight.line = i - 1
+        table.insert(hl.highlights, 1, custom_highlight)
+      end
     end
 
     local ref = M.refs[addr]

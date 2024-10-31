@@ -104,8 +104,18 @@ local function sforth_disasm(addr, code, code_offset)
 
     local name1 = string.sub(name, 1, 1)
     sforth_refs[name1] = name
+    local hl1 = {
+      start_col = 44,
+      end_col = 54,
+      hl_group = 'CrcDisSymbol',
+    }
+    local hl2 = {
+      start_col = 55,
+      end_col = 999,
+      hl_group = 'CrcDisDef',
+    }
 
-    return true, size + 2, ":", name
+    return true, size + 2, ":", name, { hl1, hl2 }
   else
     local name1 = string.sub(code, code_offset + 2, code_offset + 2)
     local name = sforth_refs[name1]
