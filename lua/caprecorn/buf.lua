@@ -116,15 +116,37 @@ M.new = function(name)
           return
         end
         addr_str = addr_str:gsub("%s+", "")
-        addr = tonumber(addr_str)
-        if addr == nil or #addr_str == 0 then
-          error("Invalid address!")
-        end
-        local sign = string.sub(addr_str, 1, 1)
-        if sign == "+" then
-          addr = tag.addr + addr
-        elseif sign == "-" then
-          addr = tag.addr + addr
+        if #addr_str == 0 then return end
+        local addr_str_hex = "0x" .. addr_str
+        addr = tonumber(addr_str_hex)
+
+        if addr == nil then
+          local reg_id = M.reg.by_name(addr_str)
+          if reg_id ~= nil then
+            local reg_value = M.reg.read(reg_id)
+            if reg_value ~= nil then
+              addr = reg_value
+            else
+              print("Failed to read register register")
+              return
+            end
+          else
+            local label_addr = M.ref.by_label(addr_str)
+            if label_addr ~= nil then
+              addr = label_addr
+            else
+              print("Invalid hex address, register or label name")
+              return
+            end
+          end
+
+        else
+          local sign = string.sub(addr_str, 1, 1)
+          if sign == "+" then
+            addr = tag.addr + addr
+          elseif sign == "-" then
+            addr = tag.addr + addr
+          end
         end
 
         if tag ~= nil then

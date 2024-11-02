@@ -14,7 +14,6 @@ end})
 
 M.mem = require("mem")
 
-M.reg = {}
 M.emu = {}
 
 -- Breakpoints
@@ -251,7 +250,13 @@ setmetatable(M.engine, { __call = function (_, engine)
       --Return status and value
       --Return 64-bit values as two 32-bit  
 
-      local reg_values = { M._engine:reg_read_batch(unpack(reg_ids)) }
+      local reg_values
+
+      if type(reg_ids) == "table" then
+        reg_values = { M._engine:reg_read_batch(unpack(reg_ids)) }
+      else
+        reg_values = M._engine:reg_read(reg_ids)
+      end
 
       return reg_values
     end
@@ -309,7 +314,6 @@ setmetatable(M.disasm, { __call = function(_, disasm)
 end})
 
 -- Vim UI integration
-M.buf = require("buf")
 M.win = require("win")
 
 M.close = function()
@@ -343,15 +347,17 @@ M.hex.setup(M.mem)
 M.reg = require("reg")
 M.reg.setup(M.emu)
 
+-- Buffers
+M.buf = require("buf")
+M.buf.reg = M.reg
+M.buf.ref = M.ref
+
 -- Disassembler
 M.dis = require("dis")
 
 -- ELF file loader
 M.elf = require("elf")
 M.elf.setup(M.emu, M.mem, M.reg)
-
-
-
 
 return M
 

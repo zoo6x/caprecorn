@@ -46,29 +46,25 @@ dis_buf.on_change = function()
   C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 })
 end
 
-local program, stack, addr, start, size
+local program, stack
 
 program = '/home/john/src/forth/smithforth/SForth'
 
 local env = {
 --  [[LD_DEBUG=all]]
-  [[LD_PRELOAD=/usr/local/lib/preload.so]]
+--  [[LD_PRELOAD=/usr/local/lib/preload.so]]
 }
 
-local elf = C.elf.loadfile(program,
-  {
-    argv = { program, "flag" },
-    env = env,
+local elf = C.elf.loadfile(program, {
+--    argv = { program, "flag" },
+--    env = env,
   })
-
 
 code = C.mem.read(elf.entry, 0x4000)
 
 stack = elf.stack_pointer
-start = elf.interp_entry
 
 C.reg.sp(stack)
-C.reg.pc(start)
 
 local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
 C.hex.dump(dump_buf, 0x4000b2, 4096)

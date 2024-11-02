@@ -22,7 +22,7 @@ M.label = function(addr, label, datatype)
   end
 end
 
-M.addr_by_label = function(label)
+M.by_label = function(label)
   for addr, l in pairs(M.sym) do
     if l == label then
       return addr
