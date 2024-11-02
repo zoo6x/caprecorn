@@ -209,6 +209,45 @@ local function insn_access_addr(insn, addr)
   return res
 end
 
+local function format_datatype(bytes, datatype)
+  local data_str = ""
+
+  local bigendian = datatype.bigendian
+  local value = 0
+  local value_str = ""
+  local ref_addr
+
+  if not datatype.skip then
+    local pow = 1
+    for i = 1, #bytes do
+      local byte = string.byte(bytes, i)
+      if bigendian then
+        value = value * 256
+        value = value + byte
+      else
+        value = value + byte * pow
+        pow = pow * 256
+      end
+    end
+
+    if datatype.decimal then
+      value_str = string.format("%d", value)
+    else
+      value_str = string.format("%0" .. tostring(#bytes * 2) .. "x", value)
+    end
+
+    data_str = data_str .. value_str
+
+    if datatype.ref then
+      if value ~= 0 then
+        ref_addr = value
+      end
+    end
+  end
+
+  return datatype.name or '.data', data_str, ref_addr
+end
+
 local function dis(start, bytes, opts)
 
   local code
@@ -258,7 +297,21 @@ local function dis(start, bytes, opts)
       local count = datatype.count or 1
       local nbytes = count * size
 
-      local line = "data " .. tostring(size) .. " * " .. tostring(count)
+      local bytes = string.sub(code, code_offset + 1, code_offset + nbytes)
+
+      local bytes_str = ""
+      for i = 0, size - 1 do
+        local byte = string.byte(string.sub(code, code_offset + i + 1, code_offset + i + 1))
+        if byte ~= nil then
+          bytes_str = bytes_str .. string.format("%02x", byte)
+        end
+      end
+
+      local data_def, data_str, ref_addr = format_datatype(bytes, datatype)
+
+      local line = string.format("%016x   %-24s %-10s %-42s", -- [%s<= %s]",
+        addr, bytes_str, data_def, data_str)
+
       table.insert(lines, line)
 
       code = string.sub(code, code_offset + nbytes + 1)
@@ -272,7 +325,7 @@ local function dis(start, bytes, opts)
       local tag = {
         addr = addr,
         access_addr = nil,
-        ref_addr = nil,
+        ref_addr = ref_addr,
         insn_size = size,
       }
       table.insert(tags, tag)

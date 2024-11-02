@@ -90,31 +90,8 @@ end
 
 local function setup_keymaps(buffer)
   if not buffer.hex.opts.fixed then
-    vim.keymap.set('n', 'ga',
-      function()
-        local addr
-
-        vim.fn.inputsave()
-        local addr_str = vim.fn.input("Input address or +/-offset:")
-        vim.fn.inputrestore()
-        if addr_str == "" then
-          return
-        end
-        addr_str = addr_str:gsub("%s+", "")
-        addr = tonumber(addr_str)
-        if addr == nil or #addr_str == 0 then
-          error("Invalid address!")
-        end
-        local sign = string.sub(addr_str, 1, 1)
-        if sign == "+" then
-          addr = buffer.hex.from + buffer.hex.size + addr
-        elseif sign == "-" then
-          addr = buffer.hex.from + addr
-        end
-
-        buffer:jump(addr)
-      end,
-      { buffer = buffer.handle(), desc = "Go to address"}
+    vim.keymap.set('n', 'ga', buffer.go_to_address_func(buffer),
+     { buffer = buffer.handle(), desc = "Go to address"}
     )
 
     -- Get original key mapping, like in the plugin below

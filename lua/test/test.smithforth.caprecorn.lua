@@ -8,6 +8,7 @@ C.disasm(C.disasm.CAPSTONE)
 
 C.open()
 
+-- Creating windows
 C.win.begin_layout()
 
 local dump = C.win.tab()
@@ -36,8 +37,13 @@ dis.buf(dis_buf)
 reg.buf(reg_buf)
 C.win.end_layout()
 
+-- Creating buffers
+
+local code
+
 dis_buf.on_change = function()
   C.reg.dump(reg_buf)
+  C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 })
 end
 
 local program, stack, addr, start, size
@@ -56,7 +62,7 @@ local elf = C.elf.loadfile(program,
   })
 
 
-local code = C.mem.read(elf.entry, 0x4000)
+code = C.mem.read(elf.entry, 0x4000)
 
 stack = elf.stack_pointer
 start = elf.interp_entry
@@ -77,11 +83,12 @@ C.ref.label(0x40009d, 'find1')
 C.ref.label(0x4000ac, 'match')
 C.ref.label(0x4000b2, 'INPUT')
 C.ref.label(0x4000cb, 'HEAD')
-C.ref.label(0x10000000, '#IN', { data = true, size = 8 })
-C.ref.label(0x10000008, 'TIB', { data = true, size = 8 })
-C.ref.label(0x10000010, '>IN', { data = true, size = 8 })
-C.ref.label(0x10000020, 'STATE', { data = true, size = 8 })
-C.ref.label(0x10000028, 'LATEST', { data = true, size = 8 })
+C.ref.label(0x10000000, nil, { data = true, size = 8, decimal = true, name = '#IN' })
+C.ref.label(0x10000008, nil, { data = true, size = 8, ref = true, name = 'TIB' })
+C.ref.label(0x10000010, nil, { data = true, size = 8, decimal = true, name = '>IN' })
+C.ref.label(0x10000018, nil, { data = true, skip = true, size = 8, name = "" })
+C.ref.label(0x10000020, nil, { data = true, size = 8, decimal = true, name = 'STATE' })
+C.ref.label(0x10000028, nil, { data = true, size = 8, ref = true, name = 'LATEST' })
 C.ref.label(0x10000030, 'TEXT')
 
 local sforth_refs = {}
@@ -95,6 +102,7 @@ local function sforth_disasm(addr, code, code_offset)
   if size_opts == nil then
     return false
   end
+  local immediate = false
 
   if bit.band(size_opts, 0x60) == 0 then
     local size = bit.band(size_opts, 0x1F)
@@ -119,6 +127,12 @@ local function sforth_disasm(addr, code, code_offset)
     return true, size + 2, ":", name, { hl1, hl2 }
   else
     local name1 = string.sub(code, code_offset + 2, code_offset + 2)
+    local marker = string.byte(string.sub(name1, 1, 1))
+    if bit.band(marker, 0x80) == 0x80 then
+      immediate = true
+      name1 = string.char(bit.band(marker, 0x7F))
+    end
+
     local name = sforth_refs[name1]
     if name == nil then
       name = "!!UNDEFINED!!"
@@ -134,9 +148,17 @@ local function sforth_disasm(addr, code, code_offset)
       end_col = 999,
       hl_group = 'CrcDisTarget',
     }
-    return true, 2, "FORTHCALL", name, { hl1, hl2 }
+    local call_str
+    if immediate then
+      call_str = "FORTHEXEC"
+    else
+      call_str = "FORTHCALL"
+    end
+    return true, 2, call_str, name, { hl1, hl2 }
   end
 end
+
+C.brk.set(0x4000b0) -- Execute immediate (text interpterer)
 
 C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work? 
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })

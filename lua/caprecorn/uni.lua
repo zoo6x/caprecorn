@@ -765,6 +765,18 @@ M.open = function(_arch, reg, emu, mem)
     end
   end
 
+  reg.by_name = function(reg_name)
+    local arch_reg = arch_reg[reg._arch]
+
+    for reg_id, reg_def in pairs(arch_reg) do
+      if reg_def.name == reg_name then
+        return reg_id
+      end
+    end
+
+    return nil
+  end
+
   -- Converts Capstone's register id to Unicorn's one
   reg.disasm_reg_id = function(disasm_reg_id)
     --TODO: Make architecture-specific

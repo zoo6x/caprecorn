@@ -101,6 +101,32 @@ M.new = function(name)
       vim.api.nvim_buf_set_lines(buf_handle, line_count, line_count, false, lines)
       vim.bo[buf_handle].modifiable = false
     end,
+
+    go_to_address_func = function(buffer)
+      return function()
+        local addr
+
+        vim.fn.inputsave()
+        local addr_str = vim.fn.input("Input address or +/-offset:")
+        vim.fn.inputrestore()
+        if addr_str == "" then
+          return
+        end
+        addr_str = addr_str:gsub("%s+", "")
+        addr = tonumber(addr_str)
+        if addr == nil or #addr_str == 0 then
+          error("Invalid address!")
+        end
+        local sign = string.sub(addr_str, 1, 1)
+        if sign == "+" then
+          addr = buffer.hex.from + buffer.hex.size + addr
+        elseif sign == "-" then
+          addr = buffer.hex.from + addr
+        end
+
+        buffer:jump(addr)
+      end
+    end
   }
 
   table.insert(M.buffers, buffer)
