@@ -52,18 +52,19 @@ program = '/home/john/src/forth/smithforth/SForth'
 
 local env = {
 --  [[LD_DEBUG=all]]
---  [[LD_PRELOAD=/usr/local/lib/preload.so]]
+  [[LD_PRELOAD=/usr/local/lib/preload.so]]
 }
 
 local elf = C.elf.loadfile(program, {
 --    argv = { program, "flag" },
---    env = env,
+    env = env,
   })
 
 code = C.mem.read(elf.entry, 0x4000)
 
 stack = elf.stack_pointer
 
+C.reg.pc(elf.entry)
 C.reg.sp(stack)
 
 local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
@@ -83,8 +84,8 @@ C.ref.label(0x10000000, nil, { data = true, size = 8, decimal = true, name = '#I
 C.ref.label(0x10000008, nil, { data = true, size = 8, ref = true, name = 'TIB' })
 C.ref.label(0x10000010, nil, { data = true, size = 8, decimal = true, name = '>IN' })
 C.ref.label(0x10000018, nil, { data = true, skip = true, size = 8, name = "" })
-C.ref.label(0x10000020, nil, { data = true, size = 8, decimal = true, name = 'STATE' })
-C.ref.label(0x10000028, nil, { data = true, size = 8, ref = true, name = 'LATEST' })
+C.ref.label(0x10000020, 'STATE', { data = true, size = 8, decimal = true, name = 'STATE' })
+C.ref.label(0x10000028, 'LATEST', { data = true, size = 8, ref = true, name = 'LATEST' })
 C.ref.label(0x10000030, 'TEXT')
 
 local sforth_refs = {}
@@ -146,15 +147,53 @@ local function sforth_disasm(addr, code, code_offset)
     }
     local call_str
     if immediate then
-      call_str = "FORTHEXEC"
+      call_str = 'FORTHEXEC'
     else
-      call_str = "FORTHCALL"
+      call_str = 'FORTHCALL'
     end
     return true, 2, call_str, name, { hl1, hl2 }
   end
 end
 
 C.brk.set(0x4000b0) -- Execute immediate (text interpterer)
+local prev_here = 0
+
+--TODO: Setting breakpoint at 0x4000cb fires only twice! Why?
+C.brk.set(0x4000cf, function()
+  prev_here = C.reg.rdi()
+  prev_here = prev_here - 0xf
+  _log.write(string.format("prev_here=%016x", prev_here))
+  return false
+end)
+
+C.brk.set(0x4000dd, function() -- Head breakpoint on creating header
+  local here = C.reg.rdi()
+  _log.write(string.format("here=%016x", here))
+
+  if prev_here ~= 0 and here > prev_here then
+    local gap_size = here - prev_here
+    _log.write(string.format("prev_here=%016x here=%016x gap=%d", prev_here, here, gap_size))
+    C.ref.label(prev_here, nil, { data = true, skip = true, size = 1, count = gap_size })
+  end
+
+  local cfa = here
+  local lfa = here + 8
+  local nfa = here + 16
+  local mask = C.reg.al()
+  local namelen = bit.band(mask, 0x1F)
+  local addr = nfa + namelen + 1
+  local source = C.reg.rsi()
+  local name = C.mem.read(source, namelen)
+
+  C.ref.label(addr, name)
+  C.ref.label(cfa, nil, { data = true, size = 8, ref = true, name = 'CFA'})
+  C.ref.label(lfa, nil, { data = true, size = 8, ref = true, name = 'LFA'})
+  C.ref.label(nfa, nil, { data = true, size = 1, count = namelen + 1, ref = true, name = 'NFA'})
+
+  _log.write(string.format("address = %016x name=[%s]", addr, name))
+
+  return false -- do not stop
+end)
 
 C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work? 
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
@@ -164,7 +203,6 @@ C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 
 
 dis.focus()
 
-C.reg.pc(elf.entry)
 
 dis_buf.go_to_pc()
 

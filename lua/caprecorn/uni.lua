@@ -765,6 +765,20 @@ M.open = function(_arch, reg, emu, mem)
     end
   end
 
+  for reg_id, reg_def in pairs(arch_reg[reg._arch]) do
+    local reg_name = reg_def.name
+
+    if reg_name ~= "sp" then
+      reg[reg_name] = function(val)
+        if val ~= nil then
+          M.engine:reg_write(reg_id, val)
+        else
+          return M.engine:reg_read(reg_id)
+        end
+      end
+    end
+  end
+
   reg.by_name = function(reg_name)
     local arch_reg = arch_reg[reg._arch]
 
