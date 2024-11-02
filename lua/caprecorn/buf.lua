@@ -106,6 +106,9 @@ M.new = function(name)
       return function()
         local addr
 
+        local row = vim.api.nvim_win_get_cursor(0)[1]
+        local tag = (buffer.hex.tags or {})[row]
+
         vim.fn.inputsave()
         local addr_str = vim.fn.input("Input address or +/-offset:")
         vim.fn.inputrestore()
@@ -119,9 +122,16 @@ M.new = function(name)
         end
         local sign = string.sub(addr_str, 1, 1)
         if sign == "+" then
-          addr = buffer.hex.from + buffer.hex.size + addr
+          addr = tag.addr + addr
         elseif sign == "-" then
-          addr = buffer.hex.from + addr
+          addr = tag.addr + addr
+        end
+
+        if tag ~= nil then
+          if buffer.hex.jump_history == nil then
+            buffer.hex.jump_history = {}
+          end
+          table.insert(buffer.hex.jump_history, tag.addr)
         end
 
         buffer:jump(addr)
