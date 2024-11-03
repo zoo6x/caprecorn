@@ -149,14 +149,26 @@ setmetatable(M.engine, { __call = function (_, engine)
         print("Emulator is already running (step)")
         return
       end
-      local last_pc = M.reg.pc()
+
+      local pc = M.reg.pc()
       M._engine:ctl_exits_disable()
+
+      -- Call breakpoint callback, if it's defined for current address
+      local breakpoint = M.brk.brk[pc]
+      if breakpoint ~= nil then
+        if breakpoint.callback then
+          _ = breakpoint.callback()
+        end
+      end
+
       local res, status = M._engine:emu_start(M.reg.pc(), -1, 0, 1)
+
       M._engine:ctl_exits_enable()
+
       if not res then
         print("[", status, "]", string.format("Error at PC=%016x", M.reg.pc()))
       else
-        print(string.format("Step succeeded, previous PC=%016x, current PC=%016x", last_pc, M.reg.pc()))
+        print(string.format("Step succeeded, previous PC=%016x, current PC=%016x", pc, M.reg.pc()))
       end
       if M.emu.stop_pc ~= nil then
         M.reg.pc(M.emu.stop_pc)
@@ -167,9 +179,8 @@ setmetatable(M.engine, { __call = function (_, engine)
 
     local idle = vim.loop.new_idle()
 
-    M.emu.run = function()
+    M.emu.run = function(steps)
       if not M.stopped() then
-
         print("Emulator is already running (run)")
         return
       end
@@ -188,61 +199,35 @@ setmetatable(M.engine, { __call = function (_, engine)
           return
         end
 
-        local pc = M.reg.pc()
+        local steps_passed = 0
+        steps = steps or 100
+        while steps_passed < steps do
 
-        M.emu.set_breakpoints({})
-        local breakpoints = {}
-        for addr, breakpoint in pairs(M.brk.brk) do
-          table.insert(breakpoints, addr)
-        end
+          local pc = M.reg.pc()
 
-        M.emu.set_breakpoints(breakpoints)
-
-        local res, status = M.start(pc, -1, 0, 100)
-        if not res then
-          idle:stop()
-          M._stopped = true
-          print(string.format("Error at PC=%016x, status=[%s]", M.reg.pc(), status))
-        end
-
-        local stop_pc = M.reg.pc()
-        local breakpoint = M.brk.brk[stop_pc]
-        if breakpoint ~= nil then
-          local stop = stop_pc ~= pc
-          if breakpoint.callback then
-            stop = breakpoint.callback()
-          end
-
-          if stop then
-            idle:stop()
-            M._stopped = true
-            print(string.format("Emulator stopped at breakpoint PC=%016x", stop_pc))
-          else
-            M.emu.set_breakpoints({})
-            M.emu.stop()
-            M.emu.step()
-            M.unstop()
-            M.emu.set_breakpoints(breakpoints)
-
-            local stop_pc = M.reg.pc()
-            local breakpoint = M.brk.brk[stop_pc]
-            if breakpoint ~= nil then
-              local stop = true
-              if breakpoint.callback then
-                stop = breakpoint.callback()
-              end
-
-              if stop then
-                idle:stop()
-                M._stopped = true
-                print(string.format("Emulator stopped at breakpoint PC=%016x", stop_pc))
-              end
+          local breakpoint = M.brk.brk[pc]
+          if breakpoint ~= nil then
+            local stop = true
+            if breakpoint.callback then
+              stop = breakpoint.callback()
+            end
+            if stop then
+              idle:stop()
+              M._stopped = true
+              print(string.format("Emulator stopped at breakpoint PC=%016x", pc))
+              break
             end
           end
-        end
 
-        --TODO: Need to detect stopping on a set_breakpoints
-        --TODO: Re-set breakpoints after one has been hit. ctl_get_exits()
+          local res, status = M.start(pc, -1, 0, 1)
+          if not res then
+            idle:stop()
+            M._stopped = true
+            print(string.format("Error at PC=%016x, status=[%s]", M.reg.pc(), status))
+          end
+
+          steps_passed = steps_passed + 1
+        end
       end)
     end
 
