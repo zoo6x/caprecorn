@@ -11,6 +11,8 @@ M.reg = nil
 M.disasm = nil
 M.emu = nil
 
+--  ―――――― ―――――――――――――――――――――――――     i――――――――  ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
 -- Cross-references, functions, etc.
 -- [[
 -- {
@@ -318,6 +320,8 @@ local function dis(start, bytes, opts)
       code_offset = 0
       M.disasm.freeiterator(it)
       it = M.disasm.createiterator(addr + nbytes, code)
+
+      custom_highlights[addr] = datatype.highlight
 
       local hl = { addr = addr }
       table.insert(highlight, hl)

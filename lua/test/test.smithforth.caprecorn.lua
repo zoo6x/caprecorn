@@ -86,7 +86,7 @@ C.ref.label(0x10000010, nil, { data = true, size = 8, decimal = true, name = '>I
 C.ref.label(0x10000018, nil, { data = true, skip = true, size = 8, name = "" })
 C.ref.label(0x10000020, 'STATE', { data = true, size = 8, decimal = true, name = 'STATE' })
 C.ref.label(0x10000028, 'LATEST', { data = true, size = 8, ref = true, name = 'LATEST' })
-C.ref.label(0x10000030, 'TEXT')
+C.ref.label(0x10000000, 'TEXT')
 
 local sforth_refs = {}
 
@@ -155,13 +155,14 @@ local function sforth_disasm(addr, code, code_offset)
   end
 end
 
+-- Breakpoints
+
 C.brk.set(0x4000b0) -- Execute immediate (text interpterer)
 local prev_here = 0
 
 --TODO: Setting breakpoint at 0x4000cb fires only twice! Why?
-C.brk.set(0x4000cf, function()
+C.brk.set(0x4000cb, function()
   prev_here = C.reg.rdi()
-  prev_here = prev_here - 0xf
   _log.write(string.format("prev_here=%016x", prev_here))
   return false
 end)
@@ -185,12 +186,25 @@ C.brk.set(0x4000dd, function() -- Head breakpoint on creating header
   local source = C.reg.rsi()
   local name = C.mem.read(source, namelen)
 
+--  ―――――― ―――――――――――――――――――――――――  ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
   C.ref.label(addr, name)
-  C.ref.label(cfa, nil, { data = true, size = 8, ref = true, name = 'CFA'})
+  C.ref.label(cfa, nil, { data = true, size = 8, ref = true, name = 'CFA',
+    highlight = {
+      {
+        start_col = 0,
+        virt_lines_above = true,
+        virt_lines = {
+          {
+            { string.rep('┈', 43) .. ' ', 'CrcDisComment' },
+            { name, 'CrcDisDef' }
+          }
+        },
+      }
+    }
+  })
   C.ref.label(lfa, nil, { data = true, size = 8, ref = true, name = 'LFA'})
   C.ref.label(nfa, nil, { data = true, size = 1, count = namelen + 1, ref = true, name = 'NFA'})
-
-  _log.write(string.format("address = %016x name=[%s]", addr, name))
 
   return false -- do not stop
 end)
@@ -199,7 +213,7 @@ C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work?
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
 
 C.dis.maxsize = 90000 --TODO: Why maxsize in opts does not work? 
-C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 })
+C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000, disasm_callback = sforth_disasm  })
 
 dis.focus()
 
