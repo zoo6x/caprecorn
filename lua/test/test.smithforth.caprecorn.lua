@@ -74,19 +74,19 @@ dump_bottom.buf(dump_buf)
 C.reg.dump(reg_buf)
 C.reg.dump(vector_reg_buf)
 
+local _text = 0x10000000
 C.ref.label(0x400089, 'binary_interpreter')
 C.ref.label(0x400090, 'command')
 C.ref.label(0x40009d, 'find1')
 C.ref.label(0x4000ac, 'match')
 C.ref.label(0x4000b2, 'INPUT')
 C.ref.label(0x4000cb, 'HEAD')
-C.ref.label(0x10000000, nil, { data = true, size = 8, decimal = true, name = '#IN' })
+C.ref.label(0x10000000, '#IN', { data = true, size = 8, decimal = true, name = '#IN' })
 C.ref.label(0x10000008, nil, { data = true, size = 8, ref = true, name = 'TIB' })
 C.ref.label(0x10000010, nil, { data = true, size = 8, decimal = true, name = '>IN' })
 C.ref.label(0x10000018, nil, { data = true, skip = true, size = 8, name = "" })
 C.ref.label(0x10000020, 'STATE', { data = true, size = 8, decimal = true, name = 'STATE' })
 C.ref.label(0x10000028, 'LATEST', { data = true, size = 8, ref = true, name = 'LATEST' })
-C.ref.label(0x10000000, 'TEXT')
 
 local sforth_refs = {}
 
@@ -105,7 +105,7 @@ local function sforth_disasm(addr, code, code_offset)
     local size = bit.band(size_opts, 0x1F)
     local name = string.sub(code, code_offset + 3, code_offset + size + 2)
     local def_addr = addr + size + 2
-    C.ref.label(def_addr, name)
+    C.ref.label(def_addr, '$' ..name)
 
     local name1 = string.sub(name, 1, 1)
     sforth_refs[name1] = name
@@ -158,23 +158,14 @@ end
 -- Breakpoints
 
 C.brk.set(0x4000b0) -- Execute immediate (text interpterer)
-local prev_here = 0
 
---TODO: Setting breakpoint at 0x4000cb fires only twice! Why?
-C.brk.set(0x4000cb, function()
-  prev_here = C.reg.rdi()
-  _log.write(string.format("prev_here=%016x", prev_here))
-  return false
-end)
-
-C.brk.set(0x4000dd, function() -- Head breakpoint on creating header
-  local here = C.reg.rdi()
-  _log.write(string.format("here=%016x", here))
+C.brk.set(0x4000cb, function() -- Head breakpoint on creating header
+  local prev_here = C.reg.rdi()
+  local here = math.floor((prev_here + 0xf) / 16) * 16
 
   if prev_here ~= 0 and here > prev_here then
     local gap_size = here - prev_here
-    _log.write(string.format("prev_here=%016x here=%016x gap=%d", prev_here, here, gap_size))
-    C.ref.label(prev_here, nil, { data = true, skip = true, size = 1, count = gap_size })
+    C.ref.label(prev_here, nil, { data = true, skip = true, size = 1, count = gap_size, name = ".align     16" })
   end
 
   local cfa = here
@@ -185,8 +176,6 @@ C.brk.set(0x4000dd, function() -- Head breakpoint on creating header
   local addr = nfa + namelen + 1
   local source = C.reg.rsi()
   local name = C.mem.read(source, namelen)
-
---  ―――――― ―――――――――――――――――――――――――  ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
 
   C.ref.label(addr, name)
   C.ref.label(cfa, nil, { data = true, size = 8, ref = true, name = 'CFA',
@@ -204,7 +193,13 @@ C.brk.set(0x4000dd, function() -- Head breakpoint on creating header
     }
   })
   C.ref.label(lfa, nil, { data = true, size = 8, ref = true, name = 'LFA'})
-  C.ref.label(nfa, nil, { data = true, size = 1, count = namelen + 1, ref = true, name = 'NFA'})
+
+  local immediate = bit.band(mask, 0x80) ~= 0
+  local hidden = bit.band(mask, 0x40) ~= 0
+  local nfa_text = "NFA        " .. name
+  if hidden then nfa_text = nfa_text .. " HIDE" end
+  if immediate then nfa_text = nfa_text .. " IMMEDIATE" end
+  C.ref.label(nfa, nil, { data = true, size = namelen + 1, count = 1, ref = false, skip = true, name = nfa_text })
 
   return false -- do not stop
 end)
