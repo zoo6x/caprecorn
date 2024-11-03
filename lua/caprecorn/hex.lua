@@ -44,7 +44,7 @@ M.hex = function (start, bytes, opts)
     opts.winbar = header
   end
 
-  --table.insert(lines, header)
+  local tags = {}
 
   while start0 < finish do
     if start0 % width == 0 then
@@ -55,6 +55,10 @@ M.hex = function (start, bytes, opts)
         if show_chars then chars = "" end
       end
       line = line .. string.format("%016x  ", start0)
+      local tag = {
+        addr = start0,
+      }
+      table.insert(tags, tag)
     end
     if start0 < start then
       line = line .. "   "
@@ -83,9 +87,13 @@ M.hex = function (start, bytes, opts)
     line = line .. " " .. chars
   end
   table.insert(lines, line)
+  local tag = {
+    addr = start0,
+  }
+  table.insert(tags, tag)
 
 
-  return lines, nil
+  return lines, nil, tags
 end
 
 local function setup_keymaps(buffer)
@@ -203,8 +211,10 @@ M.dump = function(buffer, from, size_or_bytes, opts)
   buffer.hex.opts = opts or {}
   buffer.hex.opts.fixed = fixed
 
-  local lines, highlight = M.hex(from, bytes, buffer.hex.opts)
+  local lines, highlight, tags = M.hex(from, bytes, buffer.hex.opts)
   buffer.update(lines, highlight)
+
+  buffer.hex.tags = tags
 
   if buffer.hex.opts.show_chars == nil then
     buffer.hex.opts.show_chars = true
