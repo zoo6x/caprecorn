@@ -779,10 +779,12 @@ local function setup_keymaps(buffer)
     --print(string.format("Emulator " .. string.lower(runstatus) .. " at PC=%016x", M.reg.pc()))
   end
 
+  --[[
   vim.api.nvim_create_autocmd({"BufEnter", "CursorMoved", "User", "CursorHold"}, {
     buffer = buffer.handle(),
     callback = show_running_status,
   })
+  ]]
 
   local step = function()
     M.emu.step()
@@ -827,7 +829,7 @@ local function setup_keymaps(buffer)
       end
       if M.emu.stopped() then
         timer:stop()
-        
+
         buffer:jump(M.reg.pc())
       end
     end))

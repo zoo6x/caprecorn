@@ -188,7 +188,7 @@ end
 
 C.brk.set(0x4000b0) -- Execute immediate (text interpterer)
 
-C.brk.set(0x4000cb, function() -- Head breakpoint on creating header
+local function head_brk() -- Head breakpoint on creating header
   local prev_here = C.reg.rdi()
   local here = math.floor((prev_here + 0xf) / 16) * 16
 
@@ -226,24 +226,36 @@ C.brk.set(0x4000cb, function() -- Head breakpoint on creating header
   local immediate = bit.band(mask, 0x80) ~= 0
   local hidden = bit.band(mask, 0x40) ~= 0
   local nfa_text = "NFA        " .. name
+  --TODO: read flags HIDE/IMMEDIATE from memory, not from AL at compile time
   if hidden then nfa_text = nfa_text .. " HIDE" end
   if immediate then nfa_text = nfa_text .. " IMMEDIATE" end
   C.ref.label(nfa, nil, { data = true, size = namelen + 1, count = 1, ref = false, skip = true, name = nfa_text })
 
   return false -- do not stop
-end)
+end
+
+C.brk.set(0x4000cb, head_brk)
+C.brk.set(0x10000075, head_brk)
+
 
 C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work? 
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
 
 C.dis.maxsize = 90000 --TODO: Why maxsize in opts does not work? 
-dis_buf.on_change = function()
+local function disasm_change()
   C.reg.dump(reg_buf)
   C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000, disasm_callback = sforth_disasm })
 end
 
+dis_buf.on_change = disasm_change
+dis_buf_target.on_change = disasm_change
+
 dis.focus()
 
+C.brk.set(0x00000000100004c5)
+
+-- Scratch area, where immediate calls are compiled
+C.mem.map(0x7fff0000, 0x40000)
 
 dis_buf.go_to_pc()
 
