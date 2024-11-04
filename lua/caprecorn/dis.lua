@@ -293,6 +293,8 @@ local function dis(start, bytes, opts)
     end
     addr = it.insn.address
 
+    local ref_addr
+
     local datatype = M.datatype[addr]
     if datatype ~= nil and datatype.data then
       local size = datatype.size or 1
@@ -340,7 +342,7 @@ local function dis(start, bytes, opts)
     local custom_disasm = false
     local custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlight
     if opts.disasm_callback then
-      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlight
+      custom_disasm, custom_size, custom_mnemonic, custom_op_str, custom_disasm_highlight, ref_addr
         = opts.disasm_callback(addr, code, code_offset)
       custom_highlights[addr] = custom_disasm_highlight
     end
@@ -391,6 +393,7 @@ local function dis(start, bytes, opts)
 
     code_offset = code_offset + size
 
+--[[    
     local regs_read_count = it.insn.detail.regs_read_count
     local regs_read = it.insn.detail.regs_read
     local regs_write_count = it.insn.detail.regs_write_count
@@ -417,24 +420,28 @@ local function dis(start, bytes, opts)
       local reg_name = M.reg.name(reg_id)
       regs_write_str = regs_write_str .. reg_name .. " "
     end
+]]
+    local access_addr, access_addr_str
 
-    insn_refs(it.insn, M.refs)
-    local access_addr = insn_access_addr(it.insn, addr)
-    local access_addr_str = ""
-    if access_addr ~= nil then
-      local sym = M.sym[access_addr]
-      if sym == nil then
-        access_addr_str = string.format(" (%016x)", access_addr)
-      else
-        access_addr_str = string.format(" (%s: %016x)", sym, access_addr)
+    if not custom_disasm then
+      insn_refs(it.insn, M.refs)
+      access_addr = insn_access_addr(it.insn, addr)
+      access_addr_str = ""
+      if access_addr ~= nil then
+        local sym = M.sym[access_addr]
+        if sym == nil then
+          access_addr_str = string.format(" (%016x)", access_addr)
+        else
+          access_addr_str = string.format(" (%s: %016x)", sym, access_addr)
+        end
       end
-    end
 
-    local ref_addr = insn_ref_addr(it.insn, addr)
-    if ref_addr ~= nil then
-      local sym = M.sym[ref_addr]
-      if sym ~= nil then
-        access_addr_str = string.format(" (%s)", sym, ref_addr)
+      ref_addr = insn_ref_addr(it.insn, addr)
+      if ref_addr ~= nil then
+        local sym = M.sym[ref_addr]
+        if sym ~= nil then
+          access_addr_str = string.format(" (%s)", sym, ref_addr)
+        end
       end
     end
 
@@ -450,7 +457,7 @@ local function dis(start, bytes, opts)
     end
 
     local line = string.format("%016x   %-24s %-10s %-42s", -- [%s<= %s]",
-      addr, bytes_str, mnemonic, op_str) --, regs_write_str, regs_read_str)
+      addr, bytes_str, mnemonic, op_str)
 
     table.insert(lines, line)
 

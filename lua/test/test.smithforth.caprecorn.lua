@@ -41,18 +41,13 @@ C.win.end_layout()
 
 local code
 
-dis_buf.on_change = function()
-  C.reg.dump(reg_buf)
-  C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000 })
-end
-
 local program, stack
 
 program = '/home/john/src/forth/smithforth/SForth'
 
 local env = {
 --  [[LD_DEBUG=all]]
-  [[LD_PRELOAD=/usr/local/lib/preload.so]]
+--  [[LD_PRELOAD=/usr/local/lib/preload.so]]
 }
 
 local elf = C.elf.loadfile(program, {
@@ -90,11 +85,7 @@ C.ref.label(0x10000028, 'LATEST', { data = true, size = 8, ref = true, name = 'L
 
 local sforth_refs = {}
 
-local function sforth_disasm(addr, code, code_offset)
-  local marker = string.byte(string.sub(code, code_offset + 1, code_offset + 1))
-  if marker ~= 0x99 then
-    return false
-  end
+local function sforth_disasm_99marker(addr, code, code_offset)
   local size_opts = string.byte(string.sub(code, code_offset + 2, code_offset + 2))
   if size_opts == nil then
     return false
@@ -108,7 +99,7 @@ local function sforth_disasm(addr, code, code_offset)
     C.ref.label(def_addr, '$' ..name)
 
     local name1 = string.sub(name, 1, 1)
-    sforth_refs[name1] = name
+    sforth_refs[name1] = { name = name, addr = def_addr }
 
     local hl1 = {
       start_col = 44,
@@ -130,9 +121,13 @@ local function sforth_disasm(addr, code, code_offset)
       name1 = string.char(bit.band(marker, 0x7F))
     end
 
-    local name = sforth_refs[name1]
-    if name == nil then
+    local name
+    local name_addr = sforth_refs[name1]
+    if name_addr == nil then
       name = "!!UNDEFINED!!"
+      name_addr = {}
+    else
+      name = name_addr.name
     end
 
     local hl1 = {
@@ -151,8 +146,42 @@ local function sforth_disasm(addr, code, code_offset)
     else
       call_str = 'FORTHCALL'
     end
-    return true, 2, call_str, name, { hl1, hl2 }
+    return true, 2, call_str, name, { hl1, hl2 }, name_addr.addr
   end
+end
+
+local function sforth_disasm_forthcall(addr, code, code_offset)
+  local cfa = code:i32(code_offset + 3)
+  local status, body_str = C.mem.read_safe(cfa, 8)
+  if not status then return false end
+  local body = body_str:i64()
+  local nfa = cfa + 16
+  local status, size_opts = C.mem.read_safe(nfa, 1)
+  if not status then return false end
+  local namelen = bit.band(size_opts:i8(), 0x1f)
+  local status, name = C.mem.read_safe(nfa + 1, namelen)
+  if not status then return false end
+
+  return true, 7, 'FORTHCALL', string.format("%s (%016x)", name, body), nil, body
+end
+
+local function sforth_disasm(addr, code, code_offset)
+  local marker = string.byte(string.sub(code, code_offset + 1, code_offset + 1))
+  if marker == 0x99 then
+    return sforth_disasm_99marker(addr, code, code_offset)
+  end
+
+  local m1 = string.byte(string.sub(code, code_offset + 1, code_offset + 1)) or 0
+  local m2 = string.byte(string.sub(code, code_offset + 2, code_offset + 2)) or 0
+  local m3 = string.byte(string.sub(code, code_offset + 3, code_offset + 3)) or 0
+
+  local is_forthcall = m1 == 0xff and m2 == 0x14 and m3 == 0x25
+
+  if is_forthcall then
+    return sforth_disasm_forthcall(addr, code, code_offset)
+  end
+
+  return false
 end
 
 -- Breakpoints
@@ -172,7 +201,7 @@ C.brk.set(0x4000cb, function() -- Head breakpoint on creating header
   local lfa = here + 8
   local nfa = here + 16
   local mask = C.reg.al()
-  local namelen = bit.band(mask, 0x1F)
+  local namelen = bit.band(mask, 0x1f)
   local addr = nfa + namelen + 1
   local source = C.reg.rsi()
   local name = C.mem.read(source, namelen)
@@ -208,7 +237,10 @@ C.dis.maxsize = 833 --TODO: Why maxsize in opts does not work?
 C.dis.dis(dis_buf, elf.entry, #code, { pc = C.reg.pc(), maxsize = 833, disasm_callback = sforth_disasm })
 
 C.dis.maxsize = 90000 --TODO: Why maxsize in opts does not work? 
-C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000, disasm_callback = sforth_disasm  })
+dis_buf.on_change = function()
+  C.reg.dump(reg_buf)
+  C.dis.dis(dis_buf_target, 0x10000000, #code, { pc = C.reg.pc(), maxsize = 90000, disasm_callback = sforth_disasm })
+end
 
 dis.focus()
 
