@@ -199,6 +199,8 @@ setmetatable(M.engine, { __call = function (_, engine)
           return
         end
 
+        local start_pc = M.reg.pc()
+
         local steps_passed = 0
         steps = steps or 100
         while steps_passed < steps do
@@ -207,7 +209,7 @@ setmetatable(M.engine, { __call = function (_, engine)
 
           local breakpoint = M.brk.brk[pc]
           if breakpoint ~= nil then
-            local stop = true
+            local stop = pc ~= start_pc
             if breakpoint.callback then
               stop = breakpoint.callback()
             end
