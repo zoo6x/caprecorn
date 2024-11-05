@@ -11,8 +11,6 @@ M.reg = nil
 M.disasm = nil
 M.emu = nil
 
---  ―――――― ―――――――――――――――――――――――――     i――――――――  ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-
 -- Cross-references, functions, etc.
 -- [[
 -- {
@@ -821,7 +819,7 @@ local function setup_keymaps(buffer)
 
   local timer = vim.loop.new_timer()
 
-  local run = function()
+  local run = function(arg)
     timer:start(500, 500, vim.schedule_wrap(function()
       show_running_status()
       if buffer.on_change ~= nil then
@@ -834,13 +832,39 @@ local function setup_keymaps(buffer)
       end
     end))
 
-    M.emu.run()
+    M.emu.run(arg)
 
     show_running_status()
   end
 
   vim.keymap.set('n', 'r', run, { buffer = buffer.handle(), desc = " Run"})
   vim.keymap.set('n', '<F9>', run, { buffer = buffer.handle(), desc = " Run"})
+
+  vim.keymap.set('n', 'o', function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local tag = (buffer.hex.tags or {})[row]
+      if tag == nil then
+        return
+      end
+      local insn_size = tag.insn_size
+      local addr = tag.addr
+      local stop_pc = addr + insn_size
+
+      run{ stop_pc = stop_pc }
+    end,
+    { buffer = buffer.handle(), desc = " Step over"})
+
+  vim.keymap.set('n', 'R', function()
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      local tag = (buffer.hex.tags or {})[row]
+      if tag == nil then
+        return
+      end
+      local stop_pc = tag.addr
+
+      run{ stop_pc = stop_pc }
+    end,
+    { buffer = buffer.handle(), desc = " Run to"})
 
   vim.keymap.set('n', 'S', function()
     M.emu.stop()

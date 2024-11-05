@@ -172,14 +172,13 @@ setmetatable(M.engine, { __call = function (_, engine)
       end
       if M.emu.stop_pc ~= nil then
         M.reg.pc(M.emu.stop_pc)
-        _log.write(string.format("Reverted to PC=%016x", M.emu.stop_pc))
         M.emu.stop_pc = nil
       end
     end
 
     local idle = vim.loop.new_idle()
 
-    M.emu.run = function(steps)
+    M.emu.run = function(arg)
       if not M.stopped() then
         print("Emulator is already running (run)")
         return
@@ -187,13 +186,16 @@ setmetatable(M.engine, { __call = function (_, engine)
       print(string.format("Emulator started at PC=%016x", M.reg.pc()))
       M.unstop()
 
+      arg = arg or {}
+      local steps = arg.steps or 100
+      local stop_pc = arg.stop_pc
+
       idle:start(function()
         if M.stopped() then
           idle:stop()
           print(string.format("Emulator stopped at PC=%016x", M.reg.pc()))
           if M.emu.stop_pc ~= nil then
             M.reg.pc(M.emu.stop_pc)
-            _log.write(string.format("Reverted to PC=%016x", M.emu.stop_pc))
             M.emu.stop_pc = nil
           end
           return
@@ -206,11 +208,15 @@ setmetatable(M.engine, { __call = function (_, engine)
         while steps_passed < steps do
 
           local pc = M.reg.pc()
+          local breakpoint
 
-          local breakpoint = M.brk.brk[pc]
-          if breakpoint ~= nil then
-            local stop = pc ~= start_pc
-            if breakpoint.callback then
+          if not stop_pc then
+            breakpoint = M.brk.brk[pc]
+          end
+
+          if stop_pc or breakpoint then
+            local stop = pc == stop_pc or (breakpoint and pc ~= start_pc)
+            if breakpoint and breakpoint.callback then
               stop = breakpoint.callback()
             end
             if stop then
