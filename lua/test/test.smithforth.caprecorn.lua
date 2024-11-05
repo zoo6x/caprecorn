@@ -40,24 +40,37 @@ C.win.end_layout()
 -- Creating buffers
 
 local code
+local stack
 
-local program, stack
-
-program = '/home/john/src/forth/smithforth/SForth'
+local program = '/home/john/src/forth/smithforth/SForth0'
+local forth_source = '/home/john/src/forth/smithforth/SForth0.fs'
 
 local env = {
 --  [[LD_DEBUG=all]]
 --  [[LD_PRELOAD=/usr/local/lib/preload.so]]
 }
 
+local function loadfile(filename)
+  local f = assert(io.open(filename, "rb"))
+  local content = f:read("*all")
+  f:close()
+  return content
+end
+
+local forth = loadfile(forth_source)
+
 local elf = C.elf.loadfile(program, {
 --    argv = { program, "flag" },
     env = env,
   })
 
+
 code = C.mem.read(elf.entry, 0x4000)
 
 stack = elf.stack_pointer
+
+--C.mem.map(elf.mem_start, elf.size + #forth)
+C.mem.write(elf.mem_start + elf.size, forth)
 
 C.reg.pc(elf.entry)
 C.reg.sp(stack)
