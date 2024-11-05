@@ -171,6 +171,8 @@ M.load = function(bytes, opts)
   _log.write("ELF load start")
   local res = {}
 
+  res.size = #bytes
+
   opts = opts or {}
   local rootfs = opts.rootfs or "/"
 
@@ -363,10 +365,10 @@ M.load = function(bytes, opts)
     -- But this should only be the case with old interpreters, so ignore it for now
     interp_name = rootfs .. interp_name
 
-    local interp_elf = M.loadfile(interp_name, 
-      { 
-        map_stack = false, 
-        load_addr = addresses.interp_address, 
+    local interp_elf = M.loadfile(interp_name,
+      {
+        map_stack = false,
+        load_addr = addresses.interp_address,
         rootfs = opts.rootfs,
       })
     local interp_entry = interp_elf.entry
