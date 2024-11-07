@@ -45,11 +45,6 @@ local stack
 local program = '/home/john/src/forth/smithforth/SForth0'
 local forth_source = '/home/john/src/forth/smithforth/SForth0.fs'
 
-local env = {
---  [[LD_DEBUG=all]]
---  [[LD_PRELOAD=/usr/local/lib/preload.so]]
-}
-
 local function loadfile(filename)
   local f = assert(io.open(filename, "rb"))
   local content = f:read("*all")
@@ -57,13 +52,12 @@ local function loadfile(filename)
   return content
 end
 
+local loader = loadfile(program)
 local forth = loadfile(forth_source)
 
-local elf = C.elf.loadfile(program, {
---    argv = { program, "flag" },
-    env = env,
-  })
+local elf = C.elf.load(loader)
 
+C.mem.write(elf.mem_start + #loader, forth)
 
 code = C.mem.read(elf.entry, 0x4000)
 
@@ -75,7 +69,6 @@ C.mem.write(elf.mem_start + elf.size, forth)
 C.reg.pc(elf.entry)
 C.reg.sp(stack)
 
-local stack_bytes = C.mem.read(elf.stack_addr, elf.stack_size)
 C.hex.dump(dump_buf, 0x4000b2, 4096)
 dump_bottom.buf(dump_buf)
 
