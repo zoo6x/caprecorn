@@ -85,3 +85,5 @@ Also OllyDbg, x86dbg
 - Forth in AVX-2 (?)
 - Can code segment be only executable and not readable?
 
+- https://github.com/organix/pijFORTHos
+- https://codeberg.org/phf/jones-forth-arm
